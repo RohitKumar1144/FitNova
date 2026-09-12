@@ -173,3 +173,165 @@ export async function getRecentExercisePerformance(
     return { data: [], error: err }
   }
 }
+
+export interface ActivityScoreData {
+  hasHistory: boolean
+  totalSessions: number
+  workoutsLast7Days: number
+  consistency: number
+  form: number
+  completion: number
+  progression: number
+  score: number
+}
+
+/**
+ * Retrieves workout session history and latest adaptations to compute the FitNova Activity Score.
+ * 
+ * Formula:
+ * 30% consistency
+ * 30% form
+ * 20% workout completion
+ * 20% progression
+ *
+ * All inputs and the final score are clamped to 0–100 and rounded to the nearest integer.
+ * For new users with no workouts, hasHistory is false and no fabricated score is returned.
+ */
+export async function getActivityScore(userId: string): Promise<{ data: ActivityScoreData; error: unknown }> {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    // 1. Fetch recent sessions (last 30 sessions for form/completion, plus timestamps)
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('workout_sessions')
+      .select('id, exercise_type, rep_count, good_form_reps, bad_form_reps, duration_seconds, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    // 2. Fetch latest workout plan to inspect recent adaptations
+    const { data: latestPlanRecord, error: planError } = await supabase
+      .from('workout_plans')
+      .select('plan_json')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (sessionsError) {
+      console.warn('Error fetching workout sessions for activity score:', sessionsError)
+    }
+
+    if (!sessions || sessions.length === 0) {
+      return {
+        data: {
+          hasHistory: false,
+          totalSessions: 0,
+          workoutsLast7Days: 0,
+          consistency: 0,
+          form: 0,
+          completion: 0,
+          progression: 0,
+          score: 0,
+        },
+        error: sessionsError || planError || null,
+      }
+    }
+
+    // A. Consistency: count sessions in the last 7 days
+    const workoutsLast7Days = sessions.filter((s) => s.created_at >= sevenDaysAgo).length
+    let consistency = 0
+    if (workoutsLast7Days >= 4) consistency = 100
+    else if (workoutsLast7Days === 3) consistency = 75
+    else if (workoutsLast7Days === 2) consistency = 50
+    else if (workoutsLast7Days === 1) consistency = 25
+    else consistency = 0
+
+    // B. Form Quality: average form accuracy across usable sessions
+    let formSum = 0
+    let usableFormCount = 0
+    for (const s of sessions) {
+      const good = Math.max(0, s.good_form_reps || 0)
+      const bad = Math.max(0, s.bad_form_reps || 0)
+      const totalTracked = good + bad
+      if (totalTracked > 0) {
+        formSum += (good / totalTracked) * 100
+        usableFormCount++
+      }
+    }
+    const form = usableFormCount > 0 ? Math.round(formSum / usableFormCount) : 0
+
+    // C. Workout Completion: completed reps vs target reps (or baseline)
+    let completionSum = 0
+    let usableCompletionCount = 0
+    for (const s of sessions) {
+      const completed = Math.max(0, s.rep_count || 0)
+      if (completed === 0) {
+        completionSum += 0
+        usableCompletionCount++
+        continue
+      }
+      // Standard recommended baseline for a finished set is 8 reps
+      const baseline = 8
+      const rate = Math.min(1.0, completed / baseline) * 100
+      completionSum += rate
+      usableCompletionCount++
+    }
+    const completion = usableCompletionCount > 0 ? Math.round(completionSum / usableCompletionCount) : 0
+
+    // D. Progression: average from latest plan adaptations (increase=100, maintain=70, decrease=40)
+    let progression = 0
+    const adaptations = (latestPlanRecord?.plan_json as any)?.adaptations
+    if (Array.isArray(adaptations) && adaptations.length > 0) {
+      let progressionPoints = 0
+      for (const adapt of adaptations) {
+        if (adapt.direction === 'increase') progressionPoints += 100
+        else if (adapt.direction === 'maintain') progressionPoints += 70
+        else if (adapt.direction === 'decrease') progressionPoints += 40
+        else progressionPoints += 70
+      }
+      progression = Math.round(progressionPoints / adaptations.length)
+    } else if (sessions.length > 0) {
+      // If user has workout sessions but no adaptations generated yet, use baseline 70 (consistent baseline)
+      progression = 70
+    }
+
+    // FitNova Activity Score Formula:
+    // consistency * 0.30 + form * 0.30 + completion * 0.20 + progression * 0.20
+    const rawScore =
+      consistency * 0.30 +
+      form * 0.30 +
+      completion * 0.20 +
+      progression * 0.20
+
+    const clampedScore = Math.max(0, Math.min(100, Math.round(rawScore)))
+
+    return {
+      data: {
+        hasHistory: true,
+        totalSessions: sessions.length,
+        workoutsLast7Days,
+        consistency: Math.max(0, Math.min(100, consistency)),
+        form: Math.max(0, Math.min(100, form)),
+        completion: Math.max(0, Math.min(100, completion)),
+        progression: Math.max(0, Math.min(100, progression)),
+        score: clampedScore,
+      },
+      error: null,
+    }
+  } catch (err) {
+    return {
+      data: {
+        hasHistory: false,
+        totalSessions: 0,
+        workoutsLast7Days: 0,
+        consistency: 0,
+        form: 0,
+        completion: 0,
+        progression: 0,
+        score: 0,
+      },
+      error: err,
+    }
+  }
+}
