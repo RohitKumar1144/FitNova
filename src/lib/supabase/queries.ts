@@ -107,3 +107,21 @@ export async function getDashboardStats(userId: string): Promise<{ data: Dashboa
     }
   }
 }
+
+export async function saveWorkoutSession(sessionData: {
+  user_id: string
+  exercise_type: string
+  rep_count: number
+  good_form_reps: number
+  bad_form_reps: number
+  duration_seconds: number
+  ai_feedback?: any
+}) {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .insert(sessionData)
+    .select()
+    .single()
+
+  return { data, error }
+}

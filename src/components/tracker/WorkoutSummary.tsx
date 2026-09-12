@@ -1,5 +1,18 @@
 import { Link } from 'react-router-dom'
-import { Trophy, RotateCcw, ArrowLeft, CheckCircle2, AlertTriangle, Clock, Activity } from 'lucide-react'
+import {
+  Trophy,
+  RotateCcw,
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Activity,
+  Sparkles,
+  TrendingUp,
+  Target,
+  Heart,
+} from 'lucide-react'
+import type { AIPostWorkoutFeedback } from '../../types/feedback'
 
 interface WorkoutSummaryProps {
   totalReps: number
@@ -8,6 +21,9 @@ interface WorkoutSummaryProps {
   durationSeconds: number
   onStartNewWorkout: () => void
   exerciseName?: string
+  aiFeedback?: AIPostWorkoutFeedback | null
+  aiFeedbackLoading?: boolean
+  aiFeedbackError?: string | null
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -32,20 +48,20 @@ function getSummaryMessage(totalReps: number, goodReps: number): { title: string
   if (accuracy >= 80) {
     return {
       title: 'Outstanding Performance! 🏆',
-      message: 'Excellent squat depth and body alignment throughout your sets. Keep up the high standard!',
+      message: 'Excellent form quality and controlled movement throughout your session. Keep up the high standard!',
     }
   }
 
   if (accuracy >= 50) {
     return {
       title: 'Solid Workout! 💪',
-      message: 'Good effort on completing your reps. Focus on getting thighs parallel to the ground for even better form score.',
+      message: 'Good effort on completing your reps. Focus on clean posture and full range of motion for an even higher form score.',
     }
   }
 
   return {
     title: 'Workout Finished! 🎯',
-    message: 'Good practice session. Remember to keep your chest lifted and knees tracking straight over your toes.',
+    message: 'Good practice session. Prioritize controlled pacing and alignment on each rep.',
   }
 }
 
@@ -56,6 +72,9 @@ export default function WorkoutSummary({
   durationSeconds,
   onStartNewWorkout,
   exerciseName = 'Squats',
+  aiFeedback = null,
+  aiFeedbackLoading = false,
+  aiFeedbackError = null,
 }: WorkoutSummaryProps) {
   const { title, message } = getSummaryMessage(totalReps, goodReps)
   const accuracy = totalReps > 0 ? Math.round((goodReps / totalReps) * 100) : 0
@@ -82,7 +101,7 @@ export default function WorkoutSummary({
       </p>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         {/* Total Reps */}
         <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
@@ -129,7 +148,7 @@ export default function WorkoutSummary({
 
       {/* Form Accuracy Bar if reps > 0 */}
       {totalReps > 0 && (
-        <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 mb-8">
+        <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 mb-6">
           <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2">
             <span>Form Accuracy</span>
             <span className="text-emerald-400 font-mono">{accuracy}%</span>
@@ -142,6 +161,99 @@ export default function WorkoutSummary({
           </div>
         </div>
       )}
+
+      {/* ================================================== */}
+      {/* AI COACH FEEDBACK SECTION */}
+      {/* ================================================== */}
+      <div className="my-8 text-left bg-gradient-to-b from-purple-950/20 via-slate-950/60 to-slate-950/80 border border-purple-500/20 rounded-2xl p-5 sm:p-6 shadow-xl">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+            AI Coach Feedback
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              Gemini 3.8
+            </span>
+          </h3>
+        </div>
+
+        {aiFeedbackLoading && (
+          <div className="py-6 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-purple-300 font-medium">
+              Generating your personalized coach feedback...
+            </p>
+          </div>
+        )}
+
+        {!aiFeedbackLoading && aiFeedback && (
+          <div className="space-y-4 text-xs sm:text-sm">
+            {/* Overall Assessment Summary */}
+            <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 text-purple-200 leading-relaxed font-medium">
+              {aiFeedback.summary}
+            </div>
+
+            {/* What Went Well & Improvements 2-Column Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* What went well */}
+              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+                <div className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase text-[11px] tracking-wider mb-2">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>What Went Well</span>
+                </div>
+                <ul className="space-y-1.5 text-slate-300 text-xs">
+                  {aiFeedback.what_went_well?.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5">
+                      <span className="text-emerald-400 font-bold mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Improvements */}
+              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-amber-500/20">
+                <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase text-[11px] tracking-wider mb-2">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Focus Areas</span>
+                </div>
+                <ul className="space-y-1.5 text-slate-300 text-xs">
+                  {aiFeedback.improvements?.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5">
+                      <span className="text-amber-400 font-bold mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Next Workout Recommendation */}
+            <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+              <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase text-[11px] tracking-wider mb-1.5">
+                <Target className="w-3.5 h-3.5" />
+                <span>Next Workout Recommendation</span>
+              </div>
+              <p className="text-slate-300 text-xs leading-relaxed">
+                {aiFeedback.next_workout_recommendation}
+              </p>
+            </div>
+
+            {/* Motivation */}
+            <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20 flex items-center gap-2 text-emerald-300 text-xs font-semibold">
+              <Heart className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{aiFeedback.motivation}</span>
+            </div>
+          </div>
+        )}
+
+        {!aiFeedbackLoading && !aiFeedback && (
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 text-xs leading-relaxed">
+            {aiFeedbackError || 'AI feedback is temporarily unavailable. Your workout stats above are completely saved!'}
+          </div>
+        )}
+      </div>
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

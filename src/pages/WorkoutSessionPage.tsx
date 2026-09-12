@@ -22,6 +22,8 @@ import { analyzeBicepCurlFrame, resetBicepCurlAnalyzer } from '../lib/exercises/
 import { FeedbackStabilizer, type FormStatus, type FeedbackType } from '../lib/exercises/feedback'
 import type { NormalizedLandmark } from '../lib/mediapipe/poseDetector'
 import type { SquatPhase, PushupPhase, BicepCurlPhase, FormCue, FormRating, ExerciseType } from '../lib/exercises/types'
+import { generateWorkoutFeedback } from '../lib/ai/generateFeedback'
+import type { AIPostWorkoutFeedback } from '../types/feedback'
 
 export type SessionStatus = 'idle' | 'active' | 'paused' | 'ended'
 
@@ -64,6 +66,9 @@ export default function WorkoutSessionPage() {
   const [isPoseTracking, setIsPoseTracking] = useState(false)
   const [goodReps, setGoodReps] = useState(0)
   const [needsImprovementReps, setNeedsImprovementReps] = useState(0)
+  const [aiFeedback, setAiFeedback] = useState<AIPostWorkoutFeedback | null>(null)
+  const [aiFeedbackLoading, setAiFeedbackLoading] = useState(false)
+  const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null)
 
   // Refs for tracking mutable lifecycle without causing extra renders
   const prevRepCountRef = useRef(0)
@@ -316,6 +321,9 @@ export default function WorkoutSessionPage() {
     setGoodReps(0)
     setNeedsImprovementReps(0)
     setElapsedSeconds(0)
+    setAiFeedback(null)
+    setAiFeedbackLoading(false)
+    setAiFeedbackError(null)
     setDisplay({
       ...INITIAL_DISPLAY,
       phase: initialPhase,
@@ -331,10 +339,44 @@ export default function WorkoutSessionPage() {
     setSessionStatus('active')
   }, [])
 
-  const handleEndWorkout = useCallback(() => {
+  const handleEndWorkout = useCallback(async () => {
     setSessionStatus('ended')
     setIsPoseTracking(false)
-  }, [])
+
+    // Capture final metrics
+    const finalTotalReps = prevRepCountRef.current
+    const finalGoodReps = goodRepsRef.current
+    const finalNeedsImprovementReps = needsImprovementRepsRef.current
+    const finalDuration = elapsedSeconds
+    const finalAccuracy = finalTotalReps > 0 ? Math.round((finalGoodReps / finalTotalReps) * 100) : 0
+    const currentExercise = exerciseTypeRef.current
+
+    // Request AI Coach Feedback
+    setAiFeedbackLoading(true)
+    setAiFeedbackError(null)
+
+    try {
+      const res = await generateWorkoutFeedback({
+        exercise_type: currentExercise,
+        rep_count: finalTotalReps,
+        good_form_reps: finalGoodReps,
+        bad_form_reps: finalNeedsImprovementReps,
+        duration_seconds: finalDuration,
+        form_accuracy: finalAccuracy,
+      })
+
+      if (res.feedback) {
+        setAiFeedback(res.feedback)
+      } else if (res.error) {
+        setAiFeedbackError(res.error)
+      }
+    } catch (err) {
+      console.error('Error fetching post-workout AI feedback:', err)
+      setAiFeedbackError('AI feedback is temporarily busy. Your workout stats above are saved!')
+    } finally {
+      setAiFeedbackLoading(false)
+    }
+  }, [elapsedSeconds])
 
   const handleStartNewWorkout = useCallback(() => {
     handleStartWorkout()
@@ -473,6 +515,9 @@ export default function WorkoutSessionPage() {
                 ? 'Push-ups'
                 : 'Squats'
             }
+            aiFeedback={aiFeedback}
+            aiFeedbackLoading={aiFeedbackLoading}
+            aiFeedbackError={aiFeedbackError}
           />
         ) : (
           /* VIEW 2: Active / Idle / Paused Session */
