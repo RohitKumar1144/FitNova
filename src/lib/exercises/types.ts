@@ -70,3 +70,51 @@ export interface SquatThresholds {
   /** Fraction of ankle spread that knee spread must reach to avoid "knees caving" warning. */
   kneeAlignmentRatio: number
 }
+
+// ---------------------------------------------------------------------------
+// Push-Up Types
+// ---------------------------------------------------------------------------
+
+/** Push-up state machine phases — one complete cycle = one rep. */
+export type PushupPhase = 'TOP' | 'DESCENDING' | 'BOTTOM' | 'ASCENDING'
+
+/** Supported exercises in FitNova */
+export type ExerciseType = 'squat' | 'pushup'
+
+/** All tuneable thresholds for push-up detection. */
+export interface PushupThresholds {
+  /** Elbow angle above which user is at top extended position (degrees). */
+  topAngle: number
+  /** Elbow angle below which descent begins (degrees). */
+  descentAngle: number
+  /** Elbow angle required to reach bottom position (degrees). */
+  bottomAngle: number
+  /** Elbow angle qualifying as good depth for form scoring (degrees). */
+  goodDepthAngle: number
+  /** Hysteresis margin for bottom -> ascending transition (degrees). */
+  bottomHysteresis: number
+  /** Minimum landmark visibility score required on visible side (0–1). */
+  minVisibility: number
+  /** Minimum elapsed time for a valid rep (milliseconds). */
+  minRepDurationMs: number
+  /** EMA smoothing factor for elbow angle (0–1). */
+  smoothingAlpha: number
+  /** Minimum straight-body angle (shoulder-hip-ankle) to avoid sag/pike (degrees). */
+  minBodyAlignmentAngle: number
+  /** Maximum angle of the torso / body from horizontal for a valid plank (degrees). */
+  maxBodyAngleFromHorizontal: number
+  /** Minimum consecutive frames in valid plank before a rep can start. */
+  minPlankStableFrames: number
+}
+
+/** Result returned by the push-up analyzer for every processed frame. */
+export interface PushupFrameAnalysis {
+  phase: PushupPhase
+  elbowAngle: number | null
+  repCount: number
+  currentFormCues: FormCue[]
+  lastRepRating: FormRating | null
+  deepestAngle?: number
+  bodyAngle?: number | null
+  isPlank?: boolean
+}

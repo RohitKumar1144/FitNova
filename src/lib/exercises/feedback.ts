@@ -1,6 +1,7 @@
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision'
-import type { SquatPhase, FormRating } from './types'
+import type { SquatPhase, PushupPhase, FormRating } from './types'
 import { computeTorsoLeanAngle, isKneeAlignmentGood } from './squat'
+import { computePushupBodyAlignment } from './pushup'
 
 export type FormStatus = 'GOOD' | 'NEEDS_IMPROVEMENT' | 'SEARCHING'
 export type FeedbackType = 'success' | 'warning' | 'info'
@@ -152,6 +153,138 @@ export function evaluateRawFeedback(input: FeedbackInput): PrioritizedFeedback {
   }
 }
 
+export interface PushupFeedbackInput {
+  isTracking: boolean
+  isFullyVisible: boolean
+  phase: PushupPhase
+  elbowAngle: number | null
+  deepestAngle: number
+  bodyAngle: number | null
+  landmarks: NormalizedLandmark[] | null
+  lastRepRating: FormRating | null
+  timestampMs: number
+  isPlank?: boolean
+}
+
+/**
+ * Evaluates raw feedback for push-ups based on priority hierarchy:
+ * 1. Tracking / visibility
+ * 2. Push-up depth
+ * 3. Body alignment (hip sag / pike)
+ * 4. Phase guidance & positive encouragement
+ */
+export function evaluatePushupRawFeedback(input: PushupFeedbackInput): PrioritizedFeedback {
+  const {
+    isTracking,
+    isFullyVisible,
+    phase,
+    deepestAngle,
+    landmarks,
+    lastRepRating,
+  } = input
+
+  // Priority 1: Tracking / Visibility Problem
+  if (!isTracking) {
+    return {
+      status: 'SEARCHING',
+      message: 'Searching for pose...',
+      type: 'warning',
+    }
+  }
+
+  if (!isFullyVisible || !landmarks) {
+    return {
+      status: 'SEARCHING',
+      message: 'Move into full view',
+      type: 'warning',
+    }
+  }
+
+  // Priority 2: Push-up Depth
+  if (phase === 'BOTTOM' || phase === 'ASCENDING') {
+    if (deepestAngle > 105) {
+      return {
+        status: 'NEEDS_IMPROVEMENT',
+        message: 'Lower your chest more',
+        type: 'warning',
+      }
+    }
+    if (phase === 'BOTTOM' && deepestAngle <= 95) {
+      return {
+        status: 'GOOD',
+        message: 'Good depth',
+        type: 'success',
+      }
+    }
+  }
+
+  // Priority 3: Body Alignment (Sag or Pike)
+  if (phase !== 'TOP' && landmarks) {
+    const alignment = computePushupBodyAlignment(landmarks)
+    if (!alignment.isAligned) {
+      if (alignment.issue === 'sag') {
+        return {
+          status: 'NEEDS_IMPROVEMENT',
+          message: "Don't let your hips sag",
+          type: 'warning',
+        }
+      } else {
+        return {
+          status: 'NEEDS_IMPROVEMENT',
+          message: 'Keep your body in a straight line',
+          type: 'warning',
+        }
+      }
+    }
+  }
+
+  // Priority 4: Phase Guidance & Encouragement
+  switch (phase) {
+    case 'DESCENDING':
+      return {
+        status: 'GOOD',
+        message: 'Keep going',
+        type: 'info',
+      }
+
+    case 'BOTTOM':
+      return {
+        status: 'GOOD',
+        message: 'Drive back up',
+        type: 'success',
+      }
+
+    case 'ASCENDING':
+      return {
+        status: 'GOOD',
+        message: 'Push all the way up',
+        type: 'info',
+      }
+
+    case 'TOP':
+    default:
+      if (input.isPlank === false) {
+        return {
+          status: 'GOOD',
+          message: 'Get into push-up plank',
+          type: 'info',
+        }
+      }
+      if (lastRepRating === 'good') {
+        return {
+          status: 'GOOD',
+          message: 'Good form',
+          type: 'success',
+        }
+      }
+      return {
+        status: 'GOOD',
+        message: 'Plank ready',
+        type: 'info',
+      }
+  }
+}
+
 /**
  * Stabilizes real-time feedback messages to prevent rapid frame-by-frame flickering.
  *
@@ -183,12 +316,25 @@ export class FeedbackStabilizer {
   private readonly HOLD_DURATION_MS = 800
 
   /**
-   * Process an incoming frame and return the temporally stabilized feedback.
+   * Process an incoming squat frame and return the temporally stabilized feedback.
    */
   processFrame(input: FeedbackInput): PrioritizedFeedback {
     const raw = evaluateRawFeedback(input)
-    const now = input.timestampMs
+    return this.processRaw(raw, input.timestampMs)
+  }
 
+  /**
+   * Process an incoming push-up frame and return the temporally stabilized feedback.
+   */
+  processPushupFrame(input: PushupFeedbackInput): PrioritizedFeedback {
+    const raw = evaluatePushupRawFeedback(input)
+    return this.processRaw(raw, input.timestampMs)
+  }
+
+  /**
+   * Stabilize any prioritized feedback stream temporally.
+   */
+  processRaw(raw: PrioritizedFeedback, now: number): PrioritizedFeedback {
     // Rule 1: Immediate override for critical tracking loss
     if (raw.status === 'SEARCHING') {
       this.currentDisplayed = raw

@@ -17,17 +17,19 @@ import RepCounter from '../components/tracker/RepCounter'
 import FormFeedback from '../components/tracker/FormFeedback'
 import WorkoutSummary from '../components/tracker/WorkoutSummary'
 import { analyzeSquatFrame, resetSquatAnalyzer } from '../lib/exercises/squat'
+import { analyzePushupFrame, resetPushupAnalyzer } from '../lib/exercises/pushup'
 import { FeedbackStabilizer, type FormStatus, type FeedbackType } from '../lib/exercises/feedback'
 import type { NormalizedLandmark } from '../lib/mediapipe/poseDetector'
-import type { SquatPhase, FormCue, FormRating } from '../lib/exercises/types'
+import type { SquatPhase, PushupPhase, FormCue, FormRating, ExerciseType } from '../lib/exercises/types'
 
 export type SessionStatus = 'idle' | 'active' | 'paused' | 'ended'
 
 /** UI state that drives re-renders — updated only on meaningful changes. */
 interface DisplayState {
   repCount: number
-  phase: SquatPhase
+  phase: SquatPhase | PushupPhase
   kneeAngle: number | null
+  elbowAngle?: number | null
   formCues: FormCue[]
   lastRepRating: FormRating | null
   formStatus: FormStatus
@@ -39,6 +41,7 @@ const INITIAL_DISPLAY: DisplayState = {
   repCount: 0,
   phase: 'STANDING',
   kneeAngle: null,
+  elbowAngle: null,
   formCues: [],
   lastRepRating: null,
   formStatus: 'SEARCHING',
@@ -54,6 +57,7 @@ function formatTimer(totalSeconds: number): string {
 
 export default function WorkoutSessionPage() {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle')
+  const [exerciseType, setExerciseType] = useState<ExerciseType>('squat')
   const [display, setDisplay] = useState<DisplayState>(INITIAL_DISPLAY)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [isPoseTracking, setIsPoseTracking] = useState(false)
@@ -62,24 +66,31 @@ export default function WorkoutSessionPage() {
 
   // Refs for tracking mutable lifecycle without causing extra renders
   const prevRepCountRef = useRef(0)
-  const prevPhaseRef = useRef<SquatPhase>('STANDING')
+  const prevPhaseRef = useRef<SquatPhase | PushupPhase>('STANDING')
   const frameCountRef = useRef(0)
   const sessionStatusRef = useRef<SessionStatus>('idle')
+  const exerciseTypeRef = useRef<ExerciseType>('squat')
   const goodRepsRef = useRef(0)
   const needsImprovementRepsRef = useRef(0)
   const feedbackStabilizerRef = useRef(new FeedbackStabilizer())
 
-  // Keep sessionStatusRef in sync with state
+  // Keep refs in sync with state
   useEffect(() => {
     sessionStatusRef.current = sessionStatus
   }, [sessionStatus])
 
+  useEffect(() => {
+    exerciseTypeRef.current = exerciseType
+  }, [exerciseType])
+
   // Reset analyzer on mount and cleanup on unmount
   useEffect(() => {
     resetSquatAnalyzer()
+    resetPushupAnalyzer()
     feedbackStabilizerRef.current.reset()
     return () => {
       resetSquatAnalyzer()
+      resetPushupAnalyzer()
       feedbackStabilizerRef.current.reset()
     }
   }, [])
@@ -97,7 +108,7 @@ export default function WorkoutSessionPage() {
 
   /**
    * Called every animation frame by CameraFeed with fresh landmarks.
-   * Runs the squat analyzer, prioritizes feedback, and updates display state.
+   * Runs the active exercise analyzer, prioritizes feedback, and updates display state.
    */
   const handleLandmarksDetected = useCallback(
     (landmarks: NormalizedLandmark[], timestampMs: number) => {
@@ -106,55 +117,108 @@ export default function WorkoutSessionPage() {
         return
       }
 
-      const result = analyzeSquatFrame(landmarks, timestampMs)
       frameCountRef.current += 1
 
-      // Track newly completed rep ratings
-      if (result.repCount > prevRepCountRef.current) {
-        const rating = result.lastRepRating
-        if (rating === 'good') {
-          goodRepsRef.current += 1
-          setGoodReps(goodRepsRef.current)
-        } else {
-          needsImprovementRepsRef.current += 1
-          setNeedsImprovementReps(needsImprovementRepsRef.current)
+      if (exerciseTypeRef.current === 'pushup') {
+        const result = analyzePushupFrame(landmarks, timestampMs)
+
+        // Track newly completed rep ratings
+        if (result.repCount > prevRepCountRef.current) {
+          const rating = result.lastRepRating
+          if (rating === 'good') {
+            goodRepsRef.current += 1
+            setGoodReps(goodRepsRef.current)
+          } else {
+            needsImprovementRepsRef.current += 1
+            setNeedsImprovementReps(needsImprovementRepsRef.current)
+          }
         }
-      }
 
-      // Real-time prioritized and stabilized form feedback
-      const feedback = feedbackStabilizerRef.current.processFrame({
-        isTracking: true,
-        isFullyVisible: result.kneeAngle !== null,
-        phase: result.phase,
-        kneeAngle: result.kneeAngle,
-        deepestAngle: result.deepestAngle ?? (result.kneeAngle ?? 180),
-        landmarks,
-        lastRepRating: result.lastRepRating,
-        timestampMs,
-      })
+        // Real-time prioritized and stabilized push-up form feedback
+        const feedback = feedbackStabilizerRef.current.processPushupFrame({
+          isTracking: true,
+          isFullyVisible: result.elbowAngle !== null,
+          phase: result.phase,
+          elbowAngle: result.elbowAngle,
+          deepestAngle: result.deepestAngle ?? (result.elbowAngle ?? 180),
+          bodyAngle: result.bodyAngle ?? null,
+          landmarks,
+          lastRepRating: result.lastRepRating,
+          timestampMs,
+          isPlank: result.isPlank,
+        })
 
-      // Determine if the display needs updating:
-      // - Always update on rep count change (critical)
-      // - Always update on phase change (important)
-      // - Throttle knee angle + form updates to every 3rd frame (~20fps)
-      const repChanged = result.repCount !== prevRepCountRef.current
-      const phaseChanged = result.phase !== prevPhaseRef.current
-      const throttledFrame = frameCountRef.current % 3 === 0
+        const repChanged = result.repCount !== prevRepCountRef.current
+        const phaseChanged = result.phase !== prevPhaseRef.current
+        const throttledFrame = frameCountRef.current % 3 === 0
 
-      if (repChanged || phaseChanged || throttledFrame) {
-        prevRepCountRef.current = result.repCount
-        prevPhaseRef.current = result.phase
+        if (repChanged || phaseChanged || throttledFrame) {
+          prevRepCountRef.current = result.repCount
+          prevPhaseRef.current = result.phase
 
-        setDisplay({
-          repCount: result.repCount,
+          setDisplay({
+            repCount: result.repCount,
+            phase: result.phase,
+            kneeAngle: null,
+            elbowAngle: result.elbowAngle,
+            formCues: result.currentFormCues,
+            lastRepRating: result.lastRepRating,
+            formStatus: feedback.status,
+            primaryFeedback: feedback.message,
+            primaryFeedbackType: feedback.type,
+          })
+        }
+      } else {
+        const result = analyzeSquatFrame(landmarks, timestampMs)
+
+        // Track newly completed rep ratings
+        if (result.repCount > prevRepCountRef.current) {
+          const rating = result.lastRepRating
+          if (rating === 'good') {
+            goodRepsRef.current += 1
+            setGoodReps(goodRepsRef.current)
+          } else {
+            needsImprovementRepsRef.current += 1
+            setNeedsImprovementReps(needsImprovementRepsRef.current)
+          }
+        }
+
+        // Real-time prioritized and stabilized form feedback
+        const feedback = feedbackStabilizerRef.current.processFrame({
+          isTracking: true,
+          isFullyVisible: result.kneeAngle !== null,
           phase: result.phase,
           kneeAngle: result.kneeAngle,
-          formCues: result.currentFormCues,
+          deepestAngle: result.deepestAngle ?? (result.kneeAngle ?? 180),
+          landmarks,
           lastRepRating: result.lastRepRating,
-          formStatus: feedback.status,
-          primaryFeedback: feedback.message,
-          primaryFeedbackType: feedback.type,
+          timestampMs,
         })
+
+        // Determine if the display needs updating:
+        // - Always update on rep count change (critical)
+        // - Always update on phase change (important)
+        // - Throttle knee angle + form updates to every 3rd frame (~20fps)
+        const repChanged = result.repCount !== prevRepCountRef.current
+        const phaseChanged = result.phase !== prevPhaseRef.current
+        const throttledFrame = frameCountRef.current % 3 === 0
+
+        if (repChanged || phaseChanged || throttledFrame) {
+          prevRepCountRef.current = result.repCount
+          prevPhaseRef.current = result.phase
+
+          setDisplay({
+            repCount: result.repCount,
+            phase: result.phase,
+            kneeAngle: result.kneeAngle,
+            elbowAngle: null,
+            formCues: result.currentFormCues,
+            lastRepRating: result.lastRepRating,
+            formStatus: feedback.status,
+            primaryFeedback: feedback.message,
+            primaryFeedbackType: feedback.type,
+          })
+        }
       }
     },
     [],
@@ -173,21 +237,34 @@ export default function WorkoutSessionPage() {
     }
   }, [])
 
+  const resetCurrentAnalyzer = useCallback(() => {
+    if (exerciseTypeRef.current === 'pushup') {
+      resetPushupAnalyzer()
+    } else {
+      resetSquatAnalyzer()
+    }
+    feedbackStabilizerRef.current.reset()
+  }, [])
+
   // Lifecycle control handlers
   const handleStartWorkout = useCallback(() => {
-    resetSquatAnalyzer()
-    feedbackStabilizerRef.current.reset()
+    resetCurrentAnalyzer()
+    const initialPhase: SquatPhase | PushupPhase =
+      exerciseTypeRef.current === 'pushup' ? 'TOP' : 'STANDING'
     prevRepCountRef.current = 0
-    prevPhaseRef.current = 'STANDING'
+    prevPhaseRef.current = initialPhase
     frameCountRef.current = 0
     goodRepsRef.current = 0
     needsImprovementRepsRef.current = 0
     setGoodReps(0)
     setNeedsImprovementReps(0)
     setElapsedSeconds(0)
-    setDisplay(INITIAL_DISPLAY)
+    setDisplay({
+      ...INITIAL_DISPLAY,
+      phase: initialPhase,
+    })
     setSessionStatus('active')
-  }, [])
+  }, [resetCurrentAnalyzer])
 
   const handlePause = useCallback(() => {
     setSessionStatus('paused')
@@ -207,20 +284,38 @@ export default function WorkoutSessionPage() {
   }, [handleStartWorkout])
 
   const handleReset = useCallback(() => {
-    resetSquatAnalyzer()
-    feedbackStabilizerRef.current.reset()
+    resetCurrentAnalyzer()
+    const initialPhase: SquatPhase | PushupPhase =
+      exerciseTypeRef.current === 'pushup' ? 'TOP' : 'STANDING'
     prevRepCountRef.current = 0
-    prevPhaseRef.current = 'STANDING'
+    prevPhaseRef.current = initialPhase
     frameCountRef.current = 0
     goodRepsRef.current = 0
     needsImprovementRepsRef.current = 0
     setGoodReps(0)
     setNeedsImprovementReps(0)
     setElapsedSeconds(0)
-    setDisplay(INITIAL_DISPLAY)
+    setDisplay({
+      ...INITIAL_DISPLAY,
+      phase: initialPhase,
+    })
     setIsPoseTracking(false)
     setSessionStatus('idle')
-  }, [])
+  }, [resetCurrentAnalyzer])
+
+  const handleSelectExercise = useCallback(
+    (type: ExerciseType) => {
+      if (sessionStatus !== 'idle') return
+      setExerciseType(type)
+      exerciseTypeRef.current = type
+      resetCurrentAnalyzer()
+      setDisplay({
+        ...INITIAL_DISPLAY,
+        phase: type === 'pushup' ? 'TOP' : 'STANDING',
+      })
+    },
+    [sessionStatus, resetCurrentAnalyzer],
+  )
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -308,24 +403,54 @@ export default function WorkoutSessionPage() {
             needsImprovementReps={needsImprovementReps}
             durationSeconds={elapsedSeconds}
             onStartNewWorkout={handleStartNewWorkout}
-            exerciseName="Squats"
+            exerciseName={exerciseType === 'pushup' ? 'Push-ups' : 'Squats'}
           />
         ) : (
           /* VIEW 2: Active / Idle / Paused Session */
           <div className="space-y-4">
             {/* Header / Exercise Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-wider">
                     Exercise
                   </span>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                    SQUATS
+                    {exerciseType === 'pushup' ? 'PUSH-UPS' : 'SQUATS'}
                   </h1>
+
+                  {/* Exercise selector toggle (visible in idle state) */}
+                  {sessionStatus === 'idle' && (
+                    <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-xl ml-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExercise('squat')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          exerciseType === 'squat'
+                            ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Squats
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExercise('pushup')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          exerciseType === 'pushup'
+                            ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Push-ups
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Perform bodyweight squats with full range of motion. Live AI tracks reps and posture.
+                  {exerciseType === 'pushup'
+                    ? 'Perform push-ups with straight posture and full range of motion. Live AI tracks reps and form.'
+                    : 'Perform bodyweight squats with full range of motion. Live AI tracks reps and posture.'}
                 </p>
               </div>
 
@@ -399,11 +524,13 @@ export default function WorkoutSessionPage() {
                     </div>
 
                     <h3 className="text-xl sm:text-2xl font-black text-white mb-2">
-                      Ready to Squat?
+                      {exerciseType === 'pushup' ? 'Ready for Push-ups?' : 'Ready to Squat?'}
                     </h3>
 
                     <p className="text-xs sm:text-sm text-slate-400 max-w-md mb-6 leading-relaxed">
-                      Position your device 6–8 feet away at waist height so your full body is visible. Press Start Workout when you are ready.
+                      {exerciseType === 'pushup'
+                        ? 'Position your device 5–7 feet away at floor or low level so your full side profile is visible. Press Start Workout when you are ready.'
+                        : 'Position your device 6–8 feet away at waist height so your full body is visible. Press Start Workout when you are ready.'}
                     </p>
 
                     <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 mb-6">
@@ -476,8 +603,10 @@ export default function WorkoutSessionPage() {
                 <RepCounter
                   repCount={display.repCount}
                   phase={display.phase}
-                  kneeAngle={display.kneeAngle}
-                  exerciseName="SQUATS"
+                  kneeAngle={exerciseType === 'squat' ? display.kneeAngle : null}
+                  elbowAngle={exerciseType === 'pushup' ? display.elbowAngle : null}
+                  angleLabel={exerciseType === 'pushup' ? 'Elbow Angle' : 'Knee Angle'}
+                  exerciseName={exerciseType === 'pushup' ? 'PUSH-UPS' : 'SQUATS'}
                   isTracking={isPoseTracking}
                   isPaused={sessionStatus === 'paused'}
                   className="flex-1 lg:flex-none"

@@ -1,10 +1,12 @@
-import type { SquatPhase } from '../../lib/exercises/types'
+import type { SquatPhase, PushupPhase } from '../../lib/exercises/types'
 import { Dumbbell } from 'lucide-react'
 
 interface RepCounterProps {
   repCount: number
-  phase: SquatPhase
-  kneeAngle: number | null
+  phase: SquatPhase | PushupPhase
+  kneeAngle?: number | null
+  elbowAngle?: number | null
+  angleLabel?: string
   exerciseName?: string
   isTracking?: boolean
   isPaused?: boolean
@@ -12,26 +14,31 @@ interface RepCounterProps {
 }
 
 /** Phase display configuration — label and color. */
-const PHASE_CONFIG: Record<SquatPhase, { label: string; color: string; bg: string }> = {
+const PHASE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   STANDING: { label: 'Standing', color: 'text-slate-400', bg: 'bg-slate-500/20' },
+  TOP: { label: 'Top / Plank', color: 'text-slate-400', bg: 'bg-slate-500/20' },
   DESCENDING: { label: 'Going Down', color: 'text-amber-400', bg: 'bg-amber-500/20' },
   BOTTOM: { label: 'Bottom', color: 'text-sky-400', bg: 'bg-sky-500/20' },
   ASCENDING: { label: 'Coming Up', color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
 }
 
 /**
- * Displays the current exercise, rep count, squat phase, knee angle, and tracking status.
+ * Displays the current exercise, rep count, exercise phase, joint angle, and tracking status.
  */
 export default function RepCounter({
   repCount,
   phase,
-  kneeAngle,
+  kneeAngle = null,
+  elbowAngle,
+  angleLabel,
   exerciseName = 'SQUATS',
   isTracking = true,
   isPaused = false,
   className = '',
 }: RepCounterProps) {
-  const phaseInfo = PHASE_CONFIG[phase]
+  const phaseInfo = PHASE_CONFIG[phase] || { label: phase, color: 'text-slate-400', bg: 'bg-slate-500/20' }
+  const displayAngle = elbowAngle !== undefined ? elbowAngle : kneeAngle
+  const displayAngleLabel = angleLabel || (elbowAngle !== undefined ? 'Elbow Angle' : 'Knee Angle')
 
   return (
     <div
@@ -90,7 +97,7 @@ export default function RepCounter({
             <span className="relative flex h-2 w-2">
               <span
                 className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  phase === 'STANDING' || isPaused ? '' : 'animate-ping'
+                  phase === 'STANDING' || phase === 'TOP' || isPaused ? '' : 'animate-ping'
                 } ${phaseInfo.color.replace('text-', 'bg-')}`}
               />
               <span
@@ -105,13 +112,13 @@ export default function RepCounter({
         </div>
       </div>
 
-      {/* Knee Angle */}
+      {/* Joint Angle */}
       <div className="text-center pt-1 border-t border-slate-800/80">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          Knee Angle
+          {displayAngleLabel}
         </p>
         <p className="text-xl font-black text-slate-200 tabular-nums mt-0.5">
-          {kneeAngle !== null ? `${Math.round(kneeAngle)}\u00B0` : '\u2014'}
+          {displayAngle !== null && displayAngle !== undefined ? `${Math.round(displayAngle)}\u00B0` : '\u2014'}
         </p>
       </div>
     </div>
