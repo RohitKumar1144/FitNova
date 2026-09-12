@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Camera, CameraOff, Loader2 } from 'lucide-react'
+import { Camera, CameraOff, Loader2, Pause } from 'lucide-react'
 import {
   initializePoseDetector,
   detectPoseForVideo,
@@ -9,13 +9,17 @@ import PoseOverlay from './PoseOverlay'
 
 interface CameraFeedProps {
   onLandmarksDetected?: (landmarks: NormalizedLandmark[], timestampMs: number) => void
+  onTrackingChange?: (isTracking: boolean) => void
   showOverlay?: boolean
+  isPaused?: boolean
   className?: string
 }
 
 export default function CameraFeed({
   onLandmarksDetected,
+  onTrackingChange,
   showOverlay = true,
+  isPaused = false,
   className = '',
 }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -141,16 +145,22 @@ export default function CameraFeed({
       if (result && result.landmarks && result.landmarks.length > 0) {
         const detected = result.landmarks[0]
         setCurrentLandmarks(detected)
-        if (onLandmarksDetected) {
+        if (onTrackingChange) {
+          onTrackingChange(true)
+        }
+        if (!isPaused && onLandmarksDetected) {
           onLandmarksDetected(detected, now)
         }
       } else {
         setCurrentLandmarks(null)
+        if (onTrackingChange) {
+          onTrackingChange(false)
+        }
       }
     }
 
     animationFrameIdRef.current = requestAnimationFrame(processFrame)
-  }, [onLandmarksDetected])
+  }, [onLandmarksDetected, onTrackingChange, isPaused])
 
   useEffect(() => {
     if (!isModelLoading && !isCameraStarting && stream) {
@@ -233,23 +243,42 @@ export default function CameraFeed({
         </div>
       )}
 
+      {/* Paused Overlay */}
+      {isPaused && (
+        <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center z-20 pointer-events-none">
+          <div className="px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-amber-500/40 flex items-center gap-2 text-amber-400 shadow-2xl">
+            <Pause className="w-5 h-5 fill-amber-400/20" />
+            <span className="text-xs font-bold uppercase tracking-wider">Workout Paused</span>
+          </div>
+          <p className="text-xs text-slate-300 mt-2 font-medium">Rep counting is paused. Resume when ready.</p>
+        </div>
+      )}
+
       {/* Tracking Indicator Badge */}
       {!isCameraStarting && !isModelLoading && !error && (
         <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-lg px-2.5 py-1 flex items-center gap-2 z-10">
           <span className="relative flex h-2 w-2">
             <span
               className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                currentLandmarks ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
+                isPaused
+                  ? 'bg-amber-400'
+                  : currentLandmarks
+                  ? 'bg-emerald-400 animate-ping'
+                  : 'bg-amber-400'
               }`}
             />
             <span
               className={`relative inline-flex rounded-full h-2 w-2 ${
-                currentLandmarks ? 'bg-emerald-500' : 'bg-amber-500'
+                isPaused ? 'bg-amber-500' : currentLandmarks ? 'bg-emerald-500' : 'bg-amber-500'
               }`}
             />
           </span>
           <span className="text-[11px] font-mono font-medium text-slate-300">
-            {currentLandmarks ? 'Pose Detected (33 pts)' : 'Searching for Pose...'}
+            {isPaused
+              ? 'Tracking Paused'
+              : currentLandmarks
+              ? 'Pose Detected (33 pts)'
+              : 'Searching for Pose...'}
           </span>
         </div>
       )}
