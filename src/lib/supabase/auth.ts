@@ -1,0 +1,83 @@
+import { useEffect, useState } from 'react'
+import { supabase } from './client'
+import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
+
+export async function signUpWithEmail(email: string, password: string) {
+  return await supabase.auth.signUp({
+    email,
+    password,
+  })
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  return await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+}
+
+export async function signOut() {
+  return await supabase.auth.signOut()
+}
+
+export async function getCurrentUser(): Promise<User | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
+export async function getCurrentSession(): Promise<Session | null> {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session
+}
+
+export function onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
+  return supabase.auth.onAuthStateChange(callback)
+}
+
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function initAuth() {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession()
+        if (isMounted) {
+          setSession(initialSession)
+          setUser(initialSession?.user ?? null)
+        }
+      } catch (err) {
+        console.error('Error fetching session:', err)
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    initAuth()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (isMounted) {
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
+        setLoading(false)
+      }
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  return {
+    user,
+    session,
+    loading,
+    isAuthenticated: !!session,
+  }
+}
