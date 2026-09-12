@@ -335,3 +335,189 @@ export async function getActivityScore(userId: string): Promise<{ data: Activity
     }
   }
 }
+
+export interface ProgressChartPoint {
+  date: string
+  reps: number
+  avgForm: number
+}
+
+export interface ProgressDashboardData {
+  hasHistory: boolean
+  totalWorkouts: number
+  totalReps: number
+  currentStreak: number
+  avgForm: number | null
+  completionRate: number | null
+  workoutsThisWeek: number
+  weekDays: {
+    dayName: string
+    dateString: string
+    hasWorkout: boolean
+    sessionCount: number
+    totalReps: number
+  }[]
+  chartData: ProgressChartPoint[]
+  summary: string
+  activityScore: ActivityScoreData
+}
+
+/**
+ * Retrieves comprehensive real progress data for the Progress Dashboard.
+ * Efficiently loads workout_sessions and latest plan, calculating all
+ * metrics deterministically.
+ */
+export async function getDetailedProgressDashboardData(userId: string): Promise<{
+  data: ProgressDashboardData
+  error: unknown
+}> {
+  try {
+    const [scoreResult, sessionsRes] = await Promise.all([
+      getActivityScore(userId),
+      supabase
+        .from('workout_sessions')
+        .select('id, exercise_type, rep_count, good_form_reps, bad_form_reps, duration_seconds, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(100),
+    ])
+
+    const sessions = sessionsRes.data || []
+    const activityScore = scoreResult.data
+
+    if (!sessions || sessions.length === 0) {
+      return {
+        data: {
+          hasHistory: false,
+          totalWorkouts: 0,
+          totalReps: 0,
+          currentStreak: 0,
+          avgForm: null,
+          completionRate: null,
+          workoutsThisWeek: 0,
+          weekDays: [],
+          chartData: [],
+          summary: 'Complete your first workout to start tracking progress.',
+          activityScore,
+        },
+        error: sessionsRes.error || null,
+      }
+    }
+
+    // Dynamic import of progress calculations
+    const {
+      calculateCurrentStreak,
+      getThisWeekActivity,
+      getDeterministicProgressSummary,
+    } = await import('../progress/activityScore')
+
+    const totalWorkouts = sessions.length
+    const totalReps = sessions.reduce((acc, s) => acc + (s.rep_count || 0), 0)
+
+    // Current Streak (consecutive calendar days)
+    const currentStreak = calculateCurrentStreak(sessions.map((s) => s.created_at))
+
+    // Average Form Quality
+    let formSum = 0
+    let usableFormCount = 0
+    for (const s of sessions) {
+      const good = Math.max(0, s.good_form_reps || 0)
+      const bad = Math.max(0, s.bad_form_reps || 0)
+      const totalTracked = good + bad
+      if (totalTracked > 0) {
+        formSum += (good / totalTracked) * 100
+        usableFormCount++
+      }
+    }
+    const avgForm = usableFormCount > 0 ? Math.round(formSum / usableFormCount) : null
+
+    // Completion Rate
+    let completionSum = 0
+    for (const s of sessions) {
+      const completed = Math.max(0, s.rep_count || 0)
+      const baseline = 8
+      const rate = Math.min(1.0, completed / baseline) * 100
+      completionSum += rate
+    }
+    const completionRate = Math.round(completionSum / sessions.length)
+
+    // 7-day activity & weekly count
+    const { weekDays, workoutsThisWeek } = getThisWeekActivity(sessions)
+
+    // Chart Data: group reps and form by local date (YYYY-MM-DD)
+    const chartMap = new Map<string, { totalReps: number; formSum: number; formCount: number }>()
+    for (const s of sessions) {
+      if (!s.created_at) continue
+      const d = new Date(s.created_at)
+      if (isNaN(d.getTime())) continue
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+      const entry = chartMap.get(ymd) || { totalReps: 0, formSum: 0, formCount: 0 }
+      entry.totalReps += s.rep_count || 0
+
+      const good = Math.max(0, s.good_form_reps || 0)
+      const bad = Math.max(0, s.bad_form_reps || 0)
+      if (good + bad > 0) {
+        entry.formSum += (good / (good + bad)) * 100
+        entry.formCount++
+      }
+      chartMap.set(ymd, entry)
+    }
+
+    const chartData: ProgressChartPoint[] = Array.from(chartMap.entries()).map(([date, val]) => ({
+      date: new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      reps: val.totalReps,
+      avgForm: val.formCount > 0 ? Math.round(val.formSum / val.formCount) : 0,
+    }))
+
+    const summary = getDeterministicProgressSummary({
+      totalWorkouts,
+      workoutsThisWeek,
+      avgForm: avgForm || 0,
+      currentStreak,
+    })
+
+    return {
+      data: {
+        hasHistory: true,
+        totalWorkouts,
+        totalReps,
+        currentStreak,
+        avgForm,
+        completionRate,
+        workoutsThisWeek,
+        weekDays,
+        chartData,
+        summary,
+        activityScore,
+      },
+      error: null,
+    }
+  } catch (err) {
+    return {
+      data: {
+        hasHistory: false,
+        totalWorkouts: 0,
+        totalReps: 0,
+        currentStreak: 0,
+        avgForm: null,
+        completionRate: null,
+        workoutsThisWeek: 0,
+        weekDays: [],
+        chartData: [],
+        summary: 'Complete your first workout to start tracking progress.',
+        activityScore: {
+          hasHistory: false,
+          totalSessions: 0,
+          workoutsLast7Days: 0,
+          consistency: 0,
+          form: 0,
+          completion: 0,
+          progression: 0,
+          score: 0,
+        },
+      },
+      error: err,
+    }
+  }
+}

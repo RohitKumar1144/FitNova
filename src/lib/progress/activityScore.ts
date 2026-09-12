@@ -177,3 +177,165 @@ export function calculateProgressionScoreFromAdaptations(
 
   return clamp(Math.round(totalPoints / adaptations.length), 0, 100)
 }
+
+export interface DayActivity {
+  dayName: string // 'Mon', 'Tue', etc.
+  dateString: string // 'YYYY-MM-DD'
+  hasWorkout: boolean
+  sessionCount: number
+  totalReps: number
+}
+
+/**
+ * Calculates current streak in consecutive calendar days.
+ * Consecutive calendar days ending today (or yesterday).
+ * Multiple workouts on the same day count as 1 streak day.
+ */
+export function calculateCurrentStreak(sessionDates: (string | Date)[]): number {
+  if (!sessionDates || sessionDates.length === 0) return 0
+
+  // 1. Normalize dates to local YYYY-MM-DD
+  const uniqueDates = new Set<string>()
+  for (const d of sessionDates) {
+    const dateObj = typeof d === 'string' ? new Date(d) : d
+    if (isNaN(dateObj.getTime())) continue
+    const y = dateObj.getFullYear()
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0')
+    const day = String(dateObj.getDate()).padStart(2, '0')
+    uniqueDates.add(`${y}-${m}-${day}`)
+  }
+
+  if (uniqueDates.size === 0) return 0
+
+  const toYMD = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  const now = new Date()
+  const todayStr = toYMD(now)
+
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = toYMD(yesterday)
+
+  // A streak is active if user worked out today OR yesterday
+  let anchorDate: Date
+  if (uniqueDates.has(todayStr)) {
+    anchorDate = now
+  } else if (uniqueDates.has(yesterdayStr)) {
+    anchorDate = yesterday
+  } else {
+    return 0 // Streak broken
+  }
+
+  let streak = 0
+  const checkDate = new Date(anchorDate)
+
+  while (true) {
+    const dateStr = toYMD(checkDate)
+    if (uniqueDates.has(dateStr)) {
+      streak++
+      checkDate.setDate(checkDate.getDate() - 1)
+    } else {
+      break
+    }
+  }
+
+  return streak
+}
+
+/**
+ * Generates the 7-day view for "THIS WEEK" (Monday through Sunday of current week).
+ */
+export function getThisWeekActivity(
+  sessions: { created_at: string; rep_count?: number }[]
+): { weekDays: DayActivity[]; workoutsThisWeek: number } {
+  const now = new Date()
+  const currentDayOfWeek = now.getDay() // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  // Monday as first day: diff = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
+  const mondayOffset = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
+
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + mondayOffset)
+  monday.setHours(0, 0, 0, 0)
+
+  const toYMD = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const weekDays: DayActivity[] = []
+
+  // Pre-aggregate sessions by YMD
+  const sessionsByDate = new Map<string, { count: number; totalReps: number }>()
+  if (sessions && sessions.length > 0) {
+    for (const s of sessions) {
+      if (!s.created_at) continue
+      const d = new Date(s.created_at)
+      if (isNaN(d.getTime())) continue
+      const ymd = toYMD(d)
+      const existing = sessionsByDate.get(ymd) || { count: 0, totalReps: 0 }
+      existing.count += 1
+      existing.totalReps += s.rep_count || 0
+      sessionsByDate.set(ymd, existing)
+    }
+  }
+
+  let workoutsThisWeek = 0
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(monday)
+    dayDate.setDate(monday.getDate() + i)
+    const ymd = toYMD(dayDate)
+    const data = sessionsByDate.get(ymd)
+    const hasWorkout = !!(data && data.count > 0)
+    const count = data ? data.count : 0
+    workoutsThisWeek += count
+
+    weekDays.push({
+      dayName: dayNames[i],
+      dateString: ymd,
+      hasWorkout,
+      sessionCount: count,
+      totalReps: data ? data.totalReps : 0,
+    })
+  }
+
+  return { weekDays, workoutsThisWeek }
+}
+
+/**
+ * Returns a deterministic, encouraging progress summary based on real workout metrics.
+ */
+export function getDeterministicProgressSummary(stats: {
+  totalWorkouts: number
+  workoutsThisWeek: number
+  avgForm: number
+  currentStreak: number
+}): string {
+  if (stats.totalWorkouts === 0) {
+    return 'Complete your first workout to start tracking progress.'
+  }
+  if (stats.totalWorkouts <= 2) {
+    return "You're getting started. Keep building consistency."
+  }
+  if (stats.workoutsThisWeek >= 3) {
+    return 'Great consistency this week — your momentum is building!'
+  }
+  if (stats.avgForm >= 90) {
+    return 'Your recent form quality is excellent — biomechanics are sharp.'
+  }
+  if (stats.avgForm > 0 && stats.avgForm < 75) {
+    return 'Focus on technique and controlled movement over speed.'
+  }
+  if (stats.currentStreak >= 3) {
+    return `Impressive dedication — you're on a ${stats.currentStreak}-day active streak!`
+  }
+  return 'Steady progress — keep showing up and refining your movement technique.'
+}
