@@ -47,7 +47,7 @@ export default function LandingPage() {
     {
       icon: <Activity className="w-6 h-6 text-amber-400" />,
       title: 'Automatic Rep Counting',
-      description: 'FitSaathi automatically detects and counts your exercise repetitions.',
+      description: 'FitNova automatically detects and counts your exercise repetitions.',
       tag: 'Hands-Free',
     },
     {
@@ -73,7 +73,7 @@ export default function LandingPage() {
   const steps = [
     {
       step: '01',
-      title: 'Tell FitSaathi About Yourself',
+      title: 'Tell FitNova About Yourself',
       description: 'Enter your fitness information, goal, available time, and equipment.',
       detail: 'Tailored for hostel rooms, home workouts, or gym setups.',
     },
@@ -86,7 +86,7 @@ export default function LandingPage() {
     {
       step: '03',
       title: 'Exercise With Camera Analysis',
-      description: 'Perform exercises while FitSaathi analyzes your movement.',
+      description: 'Perform exercises while FitNova analyzes your movement.',
       detail: 'Edge pose tracking runs securely in your browser.',
     },
     {
@@ -114,7 +114,7 @@ export default function LandingPage() {
               <Activity className="w-5 h-5 text-slate-950 stroke-[2.5]" />
             </div>
             <span className="text-xl font-extrabold tracking-tight text-white flex items-center gap-1.5">
-              Fit<span className="text-emerald-400">Saathi</span>
+              Fit<span className="text-emerald-400">Nova</span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-1">
                 AI
               </span>
@@ -219,7 +219,7 @@ export default function LandingPage() {
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.15] mb-6">
                 Your AI-Powered{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-                  Fitness Saathi
+                  Fitness Nova
                 </span>
               </h1>
 
@@ -392,7 +392,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="pt-4 border-t border-slate-800/80 bg-emerald-950/20 -mx-6 -mb-6 p-6 rounded-b-2xl border-emerald-500/20">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-1">FitSaathi Solution</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-1">FitNova Solution</span>
                 <p className="text-sm font-medium text-slate-200">
                   Personalized workout plans built specifically for your goal, time, and available gear.
                 </p>
@@ -411,7 +411,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="pt-4 border-t border-slate-800/80 bg-emerald-950/20 -mx-6 -mb-6 p-6 rounded-b-2xl border-emerald-500/20">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-1">FitSaathi Solution</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-1">FitNova Solution</span>
                 <p className="text-sm font-medium text-slate-200">
                   Real-time camera form detection and rep counting that alerts you before bad reps cause injuries.
                 </p>
@@ -430,7 +430,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="pt-4 border-t border-slate-800/80 bg-emerald-950/20 -mx-6 -mb-6 p-6 rounded-b-2xl border-emerald-500/20">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-1">FitSaathi Solution</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-1">FitNova Solution</span>
                 <p className="text-sm font-medium text-slate-200">
                   Form scores, streaks, and adaptive recommendations that make daily fitness fun and habit-forming.
                 </p>
@@ -489,7 +489,7 @@ export default function LandingPage() {
               Simple 4-Step Workflow
             </h2>
             <h3 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-4">
-              How FitSaathi powers your workout in minutes.
+              How FitNova powers your workout in minutes.
             </h3>
             <p className="text-slate-400 text-base">
               No complicated setups. Just open your laptop or phone and let your AI coach guide every rep.
@@ -571,7 +571,7 @@ export default function LandingPage() {
                 <Activity className="w-4 h-4 text-slate-950 stroke-[2.5]" />
               </div>
               <span className="text-lg font-bold text-white">
-                Fit<span className="text-emerald-400">Saathi</span>
+                Fit<span className="text-emerald-400">Nova</span>
               </span>
               <span className="text-xs text-slate-400 ml-2">
                 — AI-Powered Personal Fitness Coach for Students
@@ -604,7 +604,7 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-8 pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-            <p>© {new Date().getFullYear()} FitSaathi. Built for Smart India Hackathon (SIH). All rights reserved.</p>
+            <p>© {new Date().getFullYear()} FitNova. Built for Smart India Hackathon (SIH). All rights reserved.</p>
             <p className="text-slate-400">Empowering health and fitness with browser-based AI vision.</p>
           </div>
         </div>

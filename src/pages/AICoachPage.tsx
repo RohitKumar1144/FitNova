@@ -12,7 +12,7 @@ export default function AICoachPage() {
           <Sparkles className="w-3.5 h-3.5" />
           <span>AI Assistant</span>
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">FitSaathi AI Coach</h1>
+        <h1 className="text-2xl font-bold text-white mb-2">FitNova AI Coach</h1>
         <p className="text-sm text-slate-400 mb-6">
           Interactive fitness guidance, exercise tips, and personalized coaching will live here.
         </p>

@@ -120,7 +120,7 @@ serve(async (req: Request) => {
       : String(userProfile.equipment || "No Equipment");
 
     // 6. Construct carefully constrained prompt for Gemini
-    const systemPrompt = `You are FitSaathi's certified AI fitness trainer, specialized in designing safe, science-backed workout plans for students and beginners.
+    const systemPrompt = `You are FitNova's certified AI fitness trainer, specialized in designing safe, science-backed workout plans for students and beginners.
 You MUST output ONLY valid, raw JSON (no markdown fences, no backticks, no explanatory prose).
 
 CRITICAL CONSTRAINTS:
@@ -135,7 +135,7 @@ CRITICAL CONSTRAINTS:
    - Available Equipment: ${equipmentStr}
 
 2. TRACKED EXERCISES RESTRICTION:
-   FitSaathi uses real-time computer vision to track form and reps. For the "exercises" array, you MUST use ONLY these exact "exercise_type" values:
+   FitNova uses real-time computer vision to track form and reps. For the "exercises" array, you MUST use ONLY these exact "exercise_type" values:
    - "squat"
    - "pushup"
    - "bicep_curl"

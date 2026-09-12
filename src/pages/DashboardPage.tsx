@@ -125,7 +125,7 @@ export default function DashboardPage() {
               <Activity className="w-5 h-5 text-slate-950 stroke-[2.5]" />
             </div>
             <span className="text-xl font-extrabold tracking-tight text-white flex items-center gap-1">
-              Fit<span className="text-emerald-400">Saathi</span>
+              Fit<span className="text-emerald-400">Nova</span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-1">
                 AI
               </span>

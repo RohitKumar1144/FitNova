@@ -9,6 +9,7 @@ export type { PoseLandmarkerResult, NormalizedLandmark }
 
 let poseLandmarkerInstance: PoseLandmarker | null = null
 let isInitializing = false
+let lastTimestampMs = -1
 
 export interface PoseDetectorConfig {
   wasmLoaderPath?: string
@@ -61,6 +62,7 @@ export async function initializePoseDetector(config?: PoseDetectorConfig): Promi
       minTrackingConfidence: config?.minTrackingConfidence ?? 0.5,
     })
 
+    console.log('[FitNova] PoseLandmarker initialized successfully (GPU delegate)')
     return poseLandmarkerInstance
   } catch (error) {
     console.error('Failed to initialize PoseLandmarker with GPU delegate, retrying with CPU:', error)
@@ -88,6 +90,7 @@ export async function initializePoseDetector(config?: PoseDetectorConfig): Promi
         minTrackingConfidence: config?.minTrackingConfidence ?? 0.5,
       })
 
+      console.log('[FitNova] PoseLandmarker initialized successfully (CPU fallback)')
       return poseLandmarkerInstance
     } catch (cpuError) {
       console.error('Failed to initialize PoseLandmarker with CPU delegate:', cpuError)
@@ -116,6 +119,13 @@ export function detectPoseForVideo(
     return null
   }
 
+  // MediaPipe requires strictly increasing timestamps.
+  // On Windows, performance.now() can return the same value on consecutive rAF calls.
+  if (timestampMs <= lastTimestampMs) {
+    return null
+  }
+  lastTimestampMs = timestampMs
+
   try {
     return poseLandmarkerInstance.detectForVideo(video, timestampMs)
   } catch (err) {
@@ -132,4 +142,5 @@ export function disposePoseDetector(): void {
     poseLandmarkerInstance.close()
     poseLandmarkerInstance = null
   }
+  lastTimestampMs = -1
 }

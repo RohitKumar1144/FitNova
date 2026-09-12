@@ -116,7 +116,7 @@ export default function OnboardingPage() {
               <Activity className="w-5 h-5 text-slate-950 stroke-[2.5]" />
             </div>
             <span className="text-xl font-extrabold text-white">
-              Fit<span className="text-emerald-400">Saathi</span>
+              Fit<span className="text-emerald-400">Nova</span>
             </span>
           </div>
 
@@ -163,7 +163,7 @@ export default function OnboardingPage() {
 
       {/* Subtle footer info */}
       <footer className="py-6 text-center text-xs text-slate-400 border-t border-slate-900">
-        FitSaathi AI Coaching • Smart India Hackathon
+        FitNova AI Coaching • Smart India Hackathon
       </footer>
     </div>
   )

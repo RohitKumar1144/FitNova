@@ -57,7 +57,7 @@ export default function WorkoutPlanCard({
         <p className="text-sm sm:text-base text-slate-400 max-w-xl mb-6 leading-relaxed">
           {hasExistingPlan
             ? `Your AI-tailored ${availableMinutes}-minute session is calibrated for your ${goal.replace('_', ' ')} goal. Ready to begin?`
-            : `FitSaathi will generate a targeted ${availableMinutes}-minute routine focused on ${goal.replace('_', ' ')} based on your fitness profile.`}
+            : `FitNova will generate a targeted ${availableMinutes}-minute routine focused on ${goal.replace('_', ' ')} based on your fitness profile.`}
         </p>
 
         <div className="flex flex-wrap items-center gap-4">

@@ -123,7 +123,7 @@ export default function WorkoutPlanPage() {
                 <Activity className="w-4 h-4 text-slate-950 stroke-[2.5]" />
               </div>
               <span className="text-lg font-extrabold text-white hidden sm:inline-block">
-                Fit<span className="text-emerald-400">Saathi</span>
+                Fit<span className="text-emerald-400">Nova</span>
               </span>
             </Link>
           </div>
@@ -175,7 +175,7 @@ export default function WorkoutPlanPage() {
               Your AI workout is ready to be created.
             </h2>
             <p className="text-sm sm:text-base text-slate-400 mb-8 max-w-lg mx-auto leading-relaxed">
-              FitSaathi will analyze your saved fitness goals, experience level, equipment, and duration to formulate a precision routine designed for real-time camera tracking.
+              FitNova will analyze your saved fitness goals, experience level, equipment, and duration to formulate a precision routine designed for real-time camera tracking.
             </p>
 
             <button

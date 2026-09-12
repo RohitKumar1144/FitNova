@@ -111,11 +111,32 @@ export default function CameraFeed({
   }, [])
 
   // 3. Real-time frame detection loop
+  const diagCountRef = useRef(0)
   const processFrame = useCallback(() => {
     const video = videoRef.current
     if (video && video.readyState >= 2) {
       const now = performance.now()
       const result = detectPoseForVideo(video, now)
+
+      // Throttled diagnostic logging (roughly once per second at 60fps)
+      diagCountRef.current += 1
+      if (diagCountRef.current % 60 === 0) {
+        const hasLandmarks = result && result.landmarks && result.landmarks.length > 0
+        if (hasLandmarks) {
+          const lm = result!.landmarks[0]
+          console.log(
+            `[FitNova] Pose detected | landmarks: ${lm.length} | ` +
+            `L_hip vis: ${lm[23]?.visibility?.toFixed(2)} | ` +
+            `L_knee vis: ${lm[25]?.visibility?.toFixed(2)} | ` +
+            `L_ankle vis: ${lm[27]?.visibility?.toFixed(2)}`
+          )
+        } else {
+          console.log(
+            `[FitNova] No pose detected | video ready: ${video.readyState >= 2} | ` +
+            `result: ${result ? 'empty' : 'null'}`
+          )
+        }
+      }
 
       if (result && result.landmarks && result.landmarks.length > 0) {
         const detected = result.landmarks[0]

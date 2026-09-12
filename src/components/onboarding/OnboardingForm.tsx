@@ -416,7 +416,7 @@ export default function OnboardingForm({
               What is your main goal?
             </h2>
             <p className="text-sm text-slate-400 mt-1">
-              FitSaathi will configure sets, reps, and exercise selection around this.
+              FitNova will configure sets, reps, and exercise selection around this.
             </p>
           </div>
 
@@ -515,7 +515,7 @@ export default function OnboardingForm({
               What equipment do you have?
             </h2>
             <p className="text-sm text-slate-400 mt-1">
-              Select all that apply. FitSaathi will only prescribe exercises you can perform.
+              Select all that apply. FitNova will only prescribe exercises you can perform.
             </p>
           </div>
 

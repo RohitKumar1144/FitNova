@@ -43,18 +43,18 @@ export interface DashboardStats {
 
 export async function getDashboardStats(userId: string): Promise<{ data: DashboardStats; error: unknown }> {
   try {
-    // 1. Fetch workout_sessions count and total reps
+    // 1. Fetch workout_sessions — use actual columns: rep_count, good_form_reps, bad_form_reps
     const { data: sessions, error: sessionsError } = await supabase
       .from('workout_sessions')
-      .select('id, total_reps, form_score, completed_at, created_at')
+      .select('id, rep_count, good_form_reps, bad_form_reps, created_at')
       .eq('user_id', userId)
 
-    // 2. Fetch progress_snapshots
+    // 2. Fetch latest progress_snapshot — use actual columns: streak_days, total_reps, updated_at
     const { data: snapshots, error: snapshotsError } = await supabase
       .from('progress_snapshots')
-      .select('current_streak, total_reps, avg_form_score')
+      .select('streak_days, total_reps, total_sessions, updated_at')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(1)
 
     let currentStreak = 0
@@ -63,21 +63,26 @@ export async function getDashboardStats(userId: string): Promise<{ data: Dashboa
     let avgFormScore = 0
 
     if (snapshots && snapshots.length > 0) {
-      currentStreak = snapshots[0].current_streak || 0
+      currentStreak = snapshots[0].streak_days || 0
       totalReps = snapshots[0].total_reps || 0
-      avgFormScore = Math.round(snapshots[0].avg_form_score || 0)
+      totalSessions = snapshots[0].total_sessions || 0
     }
 
     if (sessions && sessions.length > 0) {
-      totalSessions = sessions.length
-      if (totalReps === 0) {
-        totalReps = sessions.reduce((acc, s) => acc + (s.total_reps || 0), 0)
+      // Use session count from actual records if snapshot didn't have it
+      if (totalSessions === 0) {
+        totalSessions = sessions.length
       }
-      if (avgFormScore === 0) {
-        const scores = sessions.map(s => s.form_score).filter(Boolean)
-        if (scores.length > 0) {
-          avgFormScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-        }
+      // Derive total reps from sessions if snapshot didn't have it
+      if (totalReps === 0) {
+        totalReps = sessions.reduce((acc, s) => acc + (s.rep_count || 0), 0)
+      }
+      // Derive average form score from good_form_reps / total tracked reps
+      const totalGood = sessions.reduce((acc, s) => acc + (s.good_form_reps || 0), 0)
+      const totalBad = sessions.reduce((acc, s) => acc + (s.bad_form_reps || 0), 0)
+      const totalTracked = totalGood + totalBad
+      if (totalTracked > 0) {
+        avgFormScore = Math.round((totalGood / totalTracked) * 100)
       }
     }
 
