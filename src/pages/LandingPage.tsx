@@ -17,7 +17,11 @@ import {
   Clock,
   Compass,
   Award,
-  Video
+  Video,
+  MessageSquare,
+  Eye,
+  ArrowRight,
+  Dumbbell
 } from 'lucide-react'
 
 export default function LandingPage() {
@@ -73,27 +77,59 @@ export default function LandingPage() {
   const steps = [
     {
       step: '01',
-      title: 'Tell FitNova About Yourself',
-      description: 'Enter your fitness information, goal, available time, and equipment.',
-      detail: 'Tailored for hostel rooms, home workouts, or gym setups.',
+      title: 'Personalize',
+      description: 'Create your account and complete onboarding with your fitness level, goal, schedule, and gear.',
+      detail: 'Tailored for students, busy beginners, and home routines.',
+      icon: <Target className="w-5 h-5 text-emerald-400" />,
+      tag: 'Onboarding',
     },
     {
       step: '02',
-      title: 'Get Your Personalized Workout',
-      description: 'AI generates a workout suited to your needs.',
-      detail: 'Smart pacing, balanced volume, and injury prevention.',
+      title: 'Get Your AI Plan',
+      description: 'FitNova generates a personalized session with target reps, sets, and balanced volume.',
+      detail: 'Built with server-side AI tailored to your profile.',
+      icon: <Brain className="w-5 h-5 text-teal-400" />,
+      tag: 'AI Generation',
     },
     {
       step: '03',
-      title: 'Exercise With Camera Analysis',
-      description: 'Perform exercises while FitNova analyzes your movement.',
-      detail: 'Edge pose tracking runs securely in your browser.',
+      title: 'Start Your Workout',
+      description: 'Launch your webcam. MediaPipe pose detection runs directly in your browser with private on-device vision.',
+      detail: 'No video is stored or sent to any remote server.',
+      icon: <Camera className="w-5 h-5 text-cyan-400" />,
+      tag: 'On-Device AI',
     },
     {
       step: '04',
-      title: 'Get Feedback & Track Progress',
-      description: 'See your reps, form score, feedback, and progress.',
-      detail: 'Unlock streaks and level up your physical consistency.',
+      title: 'Track Every Rep',
+      description: 'Perform squats, push-ups, or bicep curls with hands-free automated repetition counting.',
+      detail: 'State-machine tracking prevents phantom reps.',
+      icon: <Dumbbell className="w-5 h-5 text-sky-400" />,
+      tag: 'Vision Tracking',
+    },
+    {
+      step: '05',
+      title: 'Fix Your Form',
+      description: 'Receive real-time biomechanical feedback on joint depth, spine alignment, and movement phase.',
+      detail: 'Live visual indicators correct faults immediately.',
+      icon: <Eye className="w-5 h-5 text-amber-400" />,
+      tag: 'Instant Feedback',
+    },
+    {
+      step: '06',
+      title: 'Adapt & Improve',
+      description: 'View your FitNova Activity Score, progress trends, and earned badges as workout targets dynamically adapt.',
+      detail: 'Hardened database persistence across every session.',
+      icon: <TrendingUp className="w-5 h-5 text-purple-400" />,
+      tag: 'Adaptive Fitness',
+    },
+    {
+      step: '07',
+      title: 'Ask Your AI Coach',
+      description: 'Chat with your AI Coach anytime for workout tips, recovery suggestions, and routine modifications.',
+      detail: 'Context-aware advice tailored to your history.',
+      icon: <MessageSquare className="w-5 h-5 text-rose-400" />,
+      tag: 'Interactive Coach',
     },
   ]
 
@@ -482,42 +518,78 @@ export default function LandingPage() {
       </section>
 
       {/* 5. HOW IT WORKS SECTION */}
-      <section id="how-it-works" className="py-20 bg-slate-900/40 border-t border-slate-800 relative">
+      <section id="how-it-works" className="py-20 md:py-28 bg-slate-900/40 border-t border-slate-800 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-3">
-              Simple 4-Step Workflow
+              How FitNova Works
             </h2>
             <h3 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-4">
-              How FitNova powers your workout in minutes.
+              Your complete AI fitness journey from onboarding to mastery.
             </h3>
             <p className="text-slate-400 text-base">
-              No complicated setups. Just open your laptop or phone and let your AI coach guide every rep.
+              Explore how our server-side AI, on-device computer vision, and adaptive progression guide every repetition safely and privately.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {steps.map((item, idx) => (
               <div
                 key={idx}
-                className="relative rounded-2xl bg-slate-900/70 border border-slate-800 p-6 flex flex-col justify-between"
+                className={`group relative rounded-2xl bg-slate-900/70 border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700 hover:bg-slate-900/90 transition-all duration-200 ${
+                  idx === 6 ? 'md:col-span-2 lg:col-span-3 xl:col-span-1' : ''
+                }`}
               >
                 <div>
-                  <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400 font-mono block mb-4">
-                    {item.step}
-                  </span>
-                  <h4 className="text-lg font-bold text-white mb-2 leading-snug">
-                    {item.title}
-                  </h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400 font-mono">
+                      {item.step}
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      {item.icon}
+                    </div>
+                  </div>
+
+                  <div className="mb-2">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 inline-block mb-1.5">
+                      {item.tag}
+                    </span>
+                    <h4 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      {item.title}
+                    </h4>
+                  </div>
+
                   <p className="text-sm text-slate-300 mb-4 leading-relaxed">
                     {item.description}
                   </p>
                 </div>
-                <div className="pt-3 border-t border-slate-800 text-xs text-slate-500 font-medium">
-                  {item.detail}
+
+                <div className="pt-3 border-t border-slate-800/80 text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{item.detail}</span>
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Quick interactive callout banner inside How It Works */}
+          <div className="mt-12 rounded-2xl bg-gradient-to-r from-emerald-950/30 via-slate-900/80 to-slate-900/80 border border-emerald-500/20 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-left">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Ready to experience real-time AI movement tracking?</h4>
+                <p className="text-xs text-slate-400">Zero hardware required. Your camera feed stays 100% on your device.</p>
+              </div>
+            </div>
+            <Link
+              to="/auth"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-lg shadow-emerald-500/20 transition shrink-0"
+            >
+              <span>Get Started Now</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </section>
