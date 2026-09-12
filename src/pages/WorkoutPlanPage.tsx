@@ -17,6 +17,9 @@ import {
   LogOut,
   AlertCircle,
   ShieldCheck,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react'
 import { signOut, useAuth } from '../lib/supabase/auth'
 import { getLatestWorkoutPlan } from '../lib/supabase/queries'
@@ -262,6 +265,75 @@ export default function WorkoutPlanPage() {
                 </button>
               </div>
             </div>
+
+            {/* Step 21: Adaptive Fitness Personalization Section */}
+            {plan.adaptations && plan.adaptations.length > 0 ? (
+              <div className="rounded-2xl bg-gradient-to-r from-emerald-950/30 via-slate-900/60 to-slate-900/60 border border-emerald-500/20 p-5 sm:p-6 space-y-3">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4" />
+                  <span>Personalized For You: Adaptive Progression</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Calibrated automatically by your CV form accuracy and completion metrics from your previous workouts:
+                </p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                  {plan.adaptations.map((adapt, i) => {
+                    const formatName = (t: string) => {
+                      if (t === 'squat') return 'Squats'
+                      if (t === 'pushup') return 'Push-ups'
+                      if (t === 'bicep_curl') return 'Bicep Curls'
+                      return t
+                    }
+                    const isUp = adapt.direction === 'increase'
+                    const isDown = adapt.direction === 'decrease'
+                    return (
+                      <div
+                        key={i}
+                        className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2 ${
+                          isUp
+                            ? 'bg-emerald-500/5 border-emerald-500/20'
+                            : isDown
+                            ? 'bg-amber-500/5 border-amber-500/20'
+                            : 'bg-slate-900/50 border-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-white">
+                            {formatName(adapt.exercise_type)}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                              isUp
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : isDown
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-slate-800 text-slate-300 border border-slate-700'
+                            }`}
+                          >
+                            {isUp && <TrendingUp className="w-3 h-3" />}
+                            {isDown && <TrendingDown className="w-3 h-3" />}
+                            {!isUp && !isDown && <Minus className="w-3 h-3" />}
+                            <span>
+                              {adapt.previous_reps} → {adapt.next_reps} reps
+                            </span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          {adapt.reason}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="px-4 py-3 rounded-xl bg-slate-900/40 border border-slate-800/80 flex items-center gap-2.5 text-xs text-slate-400">
+                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  First workout baseline — FitNova will adapt your reps &amp; volume automatically based on your camera tracking performance.
+                </span>
+              </div>
+            )}
 
             {/* Warm-up Section */}
             {plan.warmup && plan.warmup.length > 0 && (

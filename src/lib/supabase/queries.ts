@@ -125,3 +125,51 @@ export async function saveWorkoutSession(sessionData: {
 
   return { data, error }
 }
+
+export interface RecentExercisePerformanceRecord {
+  id: string
+  exercise_type: string
+  rep_count: number
+  good_form_reps: number
+  bad_form_reps: number
+  duration_seconds: number
+  created_at: string
+}
+
+/**
+ * Retrieves the most recent workout session for each exercise type for the user.
+ * Fetches the latest sessions and deduplicates by exercise_type.
+ */
+export async function getRecentExercisePerformance(
+  userId: string,
+  limit: number = 10
+): Promise<{ data: RecentExercisePerformanceRecord[]; error: unknown }> {
+  try {
+    const { data, error } = await supabase
+      .from('workout_sessions')
+      .select('id, exercise_type, rep_count, good_form_reps, bad_form_reps, duration_seconds, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error || !data) {
+      return { data: [], error }
+    }
+
+    // Keep the single most recent session for each exercise_type
+    const seen = new Set<string>()
+    const latestPerExercise: RecentExercisePerformanceRecord[] = []
+
+    for (const session of data) {
+      const type = session.exercise_type
+      if (type && !seen.has(type)) {
+        seen.add(type)
+        latestPerExercise.push(session as RecentExercisePerformanceRecord)
+      }
+    }
+
+    return { data: latestPerExercise, error: null }
+  } catch (err) {
+    return { data: [], error: err }
+  }
+}

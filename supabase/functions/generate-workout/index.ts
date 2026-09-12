@@ -42,6 +42,16 @@ interface CooldownItem {
   duration_seconds: number;
 }
 
+interface AdaptationResult {
+  exercise_type: string;
+  previous_reps: number;
+  next_reps: number;
+  direction: "increase" | "maintain" | "decrease";
+  form_accuracy: number;
+  completion_rate: number;
+  reason: string;
+}
+
 interface WorkoutPlan {
   title: string;
   description: string;
@@ -51,6 +61,116 @@ interface WorkoutPlan {
   warmup: WarmupItem[];
   exercises: ExerciseItem[];
   cooldown: CooldownItem[];
+  coach_note?: string;
+  adaptations?: AdaptationResult[];
+}
+
+// Deterministic adaptation calculation
+function computeExerciseAdaptation(
+  exerciseType: string,
+  completedReps: number,
+  goodFormReps: number,
+  badFormReps: number,
+  targetReps?: number
+): AdaptationResult {
+  const minReps = 5;
+  const maxReps = 30;
+  const defaultBaseline = 10;
+  const trackedReps = goodFormReps + badFormReps;
+
+  const previousReps = targetReps && targetReps > 0
+    ? targetReps
+    : (completedReps > 0 ? completedReps : defaultBaseline);
+
+  const formAccuracy = trackedReps > 0
+    ? Math.round((goodFormReps / trackedReps) * 100)
+    : (completedReps > 0 ? 80 : 0);
+
+  const completionRate = previousReps > 0 ? completedReps / previousReps : 1.0;
+
+  // 1. Zero reps / aborted session
+  if (completedReps === 0) {
+    return {
+      exercise_type: exerciseType,
+      direction: "maintain",
+      previous_reps: previousReps,
+      next_reps: Math.max(minReps, previousReps),
+      form_accuracy: 0,
+      completion_rate: 0,
+      reason: "No completed reps recorded -- maintaining target to establish baseline.",
+    };
+  }
+
+  // 2. Substantial under-completion: completed < 80% of target
+  if (completedReps < 0.8 * previousReps) {
+    const stepDown = Math.max(1, Math.round(previousReps * 0.15));
+    const nextReps = Math.max(minReps, previousReps - stepDown);
+    if (formAccuracy < 75) {
+      return {
+        exercise_type: exerciseType,
+        direction: "decrease",
+        previous_reps: previousReps,
+        next_reps: nextReps,
+        form_accuracy: formAccuracy,
+        completion_rate: Math.round(completionRate * 100),
+        reason: "Form needs improvement -- reducing reps and prioritizing clean technique.",
+      };
+    }
+
+    return {
+      exercise_type: exerciseType,
+      direction: "decrease",
+      previous_reps: previousReps,
+      next_reps: nextReps,
+      form_accuracy: formAccuracy,
+      completion_rate: Math.round(completionRate * 100),
+      reason: "Good form, but completion was below target -- keeping the workload steady.",
+    };
+  }
+
+  // 3. Form Accuracy Rules (with completion >= 80%)
+  if (formAccuracy >= 90) {
+    const rawStep = Math.round(previousReps * 0.15);
+    const stepUp = Math.min(
+      Math.max(1, rawStep),
+      Math.max(1, Math.floor(previousReps * 0.20))
+    );
+    const nextReps = Math.min(maxReps, previousReps + stepUp);
+    return {
+      exercise_type: exerciseType,
+      direction: nextReps > previousReps ? "increase" : "maintain",
+      previous_reps: previousReps,
+      next_reps: nextReps,
+      form_accuracy: formAccuracy,
+      completion_rate: Math.round(completionRate * 100),
+      reason: "Excellent form and full completion -- increasing reps slightly.",
+    };
+  }
+
+  if (formAccuracy >= 75) {
+    return {
+      exercise_type: exerciseType,
+      direction: "maintain",
+      previous_reps: previousReps,
+      next_reps: previousReps,
+      form_accuracy: formAccuracy,
+      completion_rate: Math.round(completionRate * 100),
+      reason: "Good form and completion -- building consistency with current workload.",
+    };
+  }
+
+  // Poor form (< 75%): decrease by ~10-20%
+  const stepDown = Math.max(1, Math.round(previousReps * 0.15));
+  const nextReps = Math.max(minReps, previousReps - stepDown);
+  return {
+    exercise_type: exerciseType,
+    direction: "decrease",
+    previous_reps: previousReps,
+    next_reps: nextReps,
+    form_accuracy: formAccuracy,
+    completion_rate: Math.round(completionRate * 100),
+    reason: "Form needs improvement -- reducing reps and prioritizing clean technique.",
+  };
 }
 
 serve(async (req: Request) => {
@@ -123,17 +243,67 @@ serve(async (req: Request) => {
       ? userProfile.equipment.join(", ")
       : String(userProfile.equipment || "No Equipment");
 
-    // 5. Fetch user's recent workout performance for mild progression
+    // Optional request body (client pre-calculated adaptations)
+    let clientAdaptations: AdaptationResult[] | null = null;
+    if (req.body) {
+      try {
+        const bodyJson = await req.json();
+        if (Array.isArray(bodyJson?.adaptations) && bodyJson.adaptations.length > 0) {
+          clientAdaptations = bodyJson.adaptations;
+        }
+      } catch {
+        // Empty or non-JSON body
+      }
+    }
+
+    // 5. Fetch user's recent workout performance for deterministic adaptation
     const { data: recentSessions } = await supabase
       .from("workout_sessions")
       .select("exercise_type, rep_count, good_form_reps, bad_form_reps, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(3);
+      .limit(10);
+
+    // Compute deterministic adaptations for each unique exercise
+    const adaptationsMap = new Map<string, AdaptationResult>();
+
+    if (clientAdaptations && clientAdaptations.length > 0) {
+      for (const adapt of clientAdaptations) {
+        adaptationsMap.set(adapt.exercise_type, adapt);
+      }
+    } else if (recentSessions && recentSessions.length > 0) {
+      const seenTypes = new Set<string>();
+      for (const s of recentSessions) {
+        if (s.exercise_type && !seenTypes.has(s.exercise_type)) {
+          seenTypes.add(s.exercise_type);
+          const computed = computeExerciseAdaptation(
+            s.exercise_type,
+            s.rep_count || 0,
+            s.good_form_reps || 0,
+            s.bad_form_reps || 0
+          );
+          adaptationsMap.set(s.exercise_type, computed);
+        }
+      }
+    }
+
+    const adaptationsList = Array.from(adaptationsMap.values());
+
+    let adaptationConstraintsText = "";
+    if (adaptationsList.length > 0) {
+      const bulletPoints = adaptationsList
+        .map(
+          (a) =>
+            `- ${a.exercise_type}: MUST use exactly ${a.next_reps} reps per set (Previous: ${a.previous_reps} reps, Form score: ${a.form_accuracy}%, Reason: ${a.reason})`
+        )
+        .join("\n");
+      adaptationConstraintsText = `\n\nDETERMINISTIC PROGRESSION TARGETS (STRICT REQUIREMENT):\nThe following exercise targets were computed based on previous form quality:\n${bulletPoints}\nYou MUST respect these exact 'reps' numbers for any of these exercises you include. Do NOT alter or recalculate the reps.`;
+    }
 
     let performanceContext = "No prior workout sessions recorded.";
     if (recentSessions && recentSessions.length > 0) {
       performanceContext = recentSessions
+        .slice(0, 5)
         .map(
           (s: { exercise_type: string; rep_count: number; good_form_reps: number; bad_form_reps: number }) =>
             `- ${s.exercise_type}: ${s.rep_count} total reps (${s.good_form_reps || 0} good form, ${s.bad_form_reps || 0} needs improvement)`
@@ -157,8 +327,7 @@ CRITICAL CONSTRAINTS:
    - Available Equipment: ${equipmentStr}
 
 2. RECENT WORKOUT PERFORMANCE CONTEXT:
-${performanceContext}
-   Use this performance history for mild progression or appropriate adjustments. If the user demonstrated good form, you may slightly progress volume. If form needed improvement, prioritize clean form cues and manageable volume.
+${performanceContext}${adaptationConstraintsText}
 
 3. TRACKED EXERCISES RESTRICTION:
    FitNova uses real-time computer vision to track form and reps. For the "exercises" array, you MUST use ONLY these exact "exercise_type" values:
@@ -325,10 +494,21 @@ ${performanceContext}
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      // Enforce deterministic adaptation reps if present
+      const targetAdapt = adaptationsMap.get(ex.exercise_type);
+      if (targetAdapt) {
+        ex.reps = targetAdapt.next_reps;
+      }
+
       // Ensure rest_seconds and instructions are present
       ex.rest_seconds = typeof ex.rest_seconds === "number" ? ex.rest_seconds : 45;
       ex.instructions = ex.instructions || ex.reason || "Maintain controlled cadence and full range of motion.";
       ex.reason = ex.reason || ex.instructions;
+    }
+
+    // Attach deterministic adaptations to plan
+    if (adaptationsList.length > 0) {
+      parsedPlan.adaptations = adaptationsList;
     }
 
     // Ensure fallback fields

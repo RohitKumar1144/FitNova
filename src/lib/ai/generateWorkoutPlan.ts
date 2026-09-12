@@ -1,4 +1,6 @@
 import { supabase } from '../supabase/client'
+import { getRecentExercisePerformance } from '../supabase/queries'
+import { calculateBatchAdaptations } from '../exercises/adaptation'
 import type { WorkoutPlan, WorkoutPlanRecord } from '../../types/workout'
 
 export interface GenerateWorkoutResponse {
@@ -9,9 +11,9 @@ export interface GenerateWorkoutResponse {
 
 /**
  * Invokes the Supabase Edge Function `generate-workout`.
- * The function uses the authenticated user's JWT to load their profile,
- * calls the Gemini API on the server side, validates the response,
- * inserts the record into `workout_plans`, and returns the typed plan.
+ * Calculates deterministic adaptations based on recent exercise performance history
+ * and passes them to the function to strictly constrain Gemini targets and ensure
+ * persistence into `workout_plans`.
  */
 export async function generateWorkoutPlan(): Promise<GenerateWorkoutResponse> {
   try {
@@ -20,11 +22,39 @@ export async function generateWorkoutPlan(): Promise<GenerateWorkoutResponse> {
       return { error: 'You must be logged in to generate a workout plan.' }
     }
 
+    // Deterministically calculate adaptations from recent performance
+    let adaptationsPayload: any[] | undefined = undefined
+    try {
+      const { data: recentPerformances } = await getRecentExercisePerformance(session.user.id, 10)
+      if (recentPerformances && recentPerformances.length > 0) {
+        const perfData = recentPerformances.map((p) => ({
+          exerciseType: p.exercise_type,
+          completedReps: p.rep_count || 0,
+          goodFormReps: p.good_form_reps || 0,
+          badFormReps: p.bad_form_reps || 0,
+          durationSeconds: p.duration_seconds,
+        }))
+        const calculated = calculateBatchAdaptations(perfData)
+        adaptationsPayload = calculated.map((a) => ({
+          exercise_type: a.exerciseType,
+          previous_reps: a.previousReps,
+          next_reps: a.nextReps,
+          direction: a.direction,
+          form_accuracy: a.formAccuracy,
+          completion_rate: a.completionRate,
+          reason: a.reason,
+        }))
+      }
+    } catch (adaptErr) {
+      console.warn('Failed to compute client-side adaptations, falling back to server calculation:', adaptErr)
+    }
+
     const { data, error } = await supabase.functions.invoke('generate-workout', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
+      body: adaptationsPayload ? { adaptations: adaptationsPayload } : undefined,
     })
 
     if (error) {

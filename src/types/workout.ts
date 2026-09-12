@@ -30,6 +30,15 @@ export interface WorkoutPlan {
   exercises: ExerciseItem[]
   cooldown: CooldownItem[]
   coach_note?: string
+  adaptations?: {
+    exercise_type: TrackedExerciseType | string
+    previous_reps: number
+    next_reps: number
+    direction: 'increase' | 'maintain' | 'decrease'
+    form_accuracy?: number
+    completion_rate?: number
+    reason: string
+  }[]
 }
 
 export interface WorkoutPlanRecord {
