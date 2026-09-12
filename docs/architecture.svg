@@ -1,0 +1,494 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" style="background: #090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070a12"/>
+      <stop offset="50%" stop-color="#0b1120"/>
+      <stop offset="100%" stop-color="#080c17"/>
+    </linearGradient>
+
+    <!-- Layer Card Gradients -->
+    <linearGradient id="client-card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#0a0f1d" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="cv-card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#022c22" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="cloud-card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.5"/>
+    </linearGradient>
+    <linearGradient id="ai-card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#312e81" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0.6"/>
+    </linearGradient>
+
+    <!-- Accent Gradients -->
+    <linearGradient id="emerald-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="purple-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="amber-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+
+    <!-- Filter Shadows -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <filter id="soft-glow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#10b981" flood-opacity="0.35"/>
+    </filter>
+
+    <!-- Arrow Markers -->
+    <marker id="arrow-emerald" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#10b981" />
+    </marker>
+    <marker id="arrow-cyan" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#06b6d4" />
+    </marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#a855f7" />
+    </marker>
+    <marker id="arrow-amber" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#f59e0b" />
+    </marker>
+    <marker id="arrow-slate" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1600" height="900" fill="url(#bg-grad)"/>
+
+  <!-- Subtle Ambient Grid Lines -->
+  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="150" x2="1600" y2="150"/>
+    <line x1="0" y1="300" x2="1600" y2="300"/>
+    <line x1="0" y1="450" x2="1600" y2="450"/>
+    <line x1="0" y1="600" x2="1600" y2="600"/>
+    <line x1="0" y1="750" x2="1600" y2="750"/>
+    <line x1="266" y1="0" x2="266" y2="900"/>
+    <line x1="533" y1="0" x2="533" y2="900"/>
+    <line x1="800" y1="0" x2="800" y2="900"/>
+    <line x1="1066" y1="0" x2="1066" y2="900"/>
+    <line x1="1333" y1="0" x2="1333" y2="900"/>
+  </g>
+
+  <!-- ================================================================= -->
+  <!-- HEADER SECTION                                                    -->
+  <!-- ================================================================= -->
+  <g transform="translate(60, 30)">
+    <!-- Logo Badge -->
+    <rect x="0" y="0" width="130" height="34" rx="8" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="1.2"/>
+    <circle cx="18" cy="17" r="5" fill="#10b981"/>
+    <text x="32" y="22" fill="#34d399" font-size="14" font-weight="800" letter-spacing="1">FITNOVA</text>
+
+    <!-- Main Title -->
+    <text x="145" y="24" fill="#ffffff" font-size="24" font-weight="800" letter-spacing="-0.5">System Architecture &amp; Data Flow</text>
+    <text x="590" y="23" fill="#64748b" font-size="14" font-weight="500">|</text>
+    <text x="605" y="23" fill="#94a3b8" font-size="14" font-weight="500">Smart India Hackathon (SIH) Technical Design</text>
+
+    <!-- Privacy & Latency Guarantee Pill -->
+    <g transform="translate(940, -4)">
+      <rect x="0" y="0" width="540" height="42" rx="10" fill="#064e3b" fill-opacity="0.3" stroke="#10b981" stroke-width="1.2"/>
+      <circle cx="20" cy="21" r="6" fill="#10b981"/>
+      <text x="36" y="20" fill="#a7f3d0" font-size="12" font-weight="700" letter-spacing="0.5">100% PRIVATE CLIENT-SIDE COMPUTER VISION</text>
+      <text x="36" y="34" fill="#6ee7b7" font-size="10.5" font-weight="500">Zero webcam video sent to cloud • Real-time on-device inference • No AI in video loop</text>
+    </g>
+  </g>
+
+  <!-- ================================================================= -->
+  <!-- COLUMN 1: CLIENT-SIDE ENVIRONMENT (Left: x=60 to 760)             -->
+  <!-- ================================================================= -->
+
+  <!-- Boundary Container for Client Side -->
+  <rect x="60" y="90" width="710" height="740" rx="18" fill="url(#client-card)" stroke="#1e293b" stroke-width="1.5" filter="url(#shadow)"/>
+  
+  <!-- Boundary Header -->
+  <rect x="60" y="90" width="710" height="48" rx="18" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+  <rect x="80" y="103" width="90" height="22" rx="6" fill="#0284c7" fill-opacity="0.2" stroke="#38bdf8" stroke-width="1"/>
+  <text x="125" y="118" fill="#38bdf8" font-size="10.5" font-weight="700" text-anchor="middle">CLIENT DEVICE</text>
+  <text x="185" y="120" fill="#ffffff" font-size="14" font-weight="700">Client Runtime &amp; On-Device Execution</text>
+  <text x="590" y="120" fill="#94a3b8" font-size="11.5" font-weight="500">Browser Environment</text>
+
+  <!-- LAYER 1: USER INTERACTION -->
+  <g transform="translate(85, 155)">
+    <rect x="0" y="0" width="660" height="50" rx="10" fill="#1e293b" fill-opacity="0.6" stroke="#334155" stroke-width="1"/>
+    <circle cx="28" cy="25" r="14" fill="#3b82f6" fill-opacity="0.2"/>
+    <text x="28" y="30" fill="#60a5fa" font-size="14" font-weight="700" text-anchor="middle">👤</text>
+    <text x="55" y="24" fill="#ffffff" font-size="13.5" font-weight="700">User / Athlete</text>
+    <text x="55" y="39" fill="#94a3b8" font-size="11">Interacts via Webcam, Dashboard, AI Coach Chat, and Interactive Pose Overlay</text>
+  </g>
+
+  <!-- LAYER 2: FITNOVA FRONTEND SPA -->
+  <g transform="translate(85, 220)">
+    <rect x="0" y="0" width="660" height="185" rx="12" fill="#0b1329" stroke="#1d4ed8" stroke-width="1.2"/>
+    
+    <!-- Subheader -->
+    <rect x="15" y="12" width="190" height="22" rx="5" fill="#1d4ed8" fill-opacity="0.25"/>
+    <text x="25" y="27" fill="#60a5fa" font-size="11.5" font-weight="700">FITNOVA FRONTEND (SPA)</text>
+    <text x="215" y="27" fill="#64748b" font-size="11">React 19 • TypeScript • Vite • Tailwind CSS</text>
+
+    <!-- Feature Modules Grid -->
+    <g transform="translate(15, 45)">
+      <!-- Module 1 -->
+      <rect x="0" y="0" width="195" height="58" rx="8" fill="#1e293b" fill-opacity="0.5" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="22" fill="#f8fafc" font-size="12" font-weight="700">Auth &amp; Onboarding</text>
+      <text x="12" y="38" fill="#94a3b8" font-size="10">Supabase Auth Session</text>
+      <text x="12" y="50" fill="#94a3b8" font-size="10">Fitness Level, Goal, Time</text>
+
+      <!-- Module 2 -->
+      <rect x="215" y="0" width="200" height="58" rx="8" fill="#1e293b" fill-opacity="0.5" stroke="#334155" stroke-width="1"/>
+      <text x="227" y="22" fill="#f8fafc" font-size="12" font-weight="700">Dashboard &amp; Progress</text>
+      <text x="227" y="38" fill="#94a3b8" font-size="10">FitNova Activity Score (30/30/20/20)</text>
+      <text x="227" y="50" fill="#94a3b8" font-size="10">4 Gamified Achievement Badges</text>
+
+      <!-- Module 3 -->
+      <rect x="435" y="0" width="195" height="58" rx="8" fill="#1e293b" fill-opacity="0.5" stroke="#334155" stroke-width="1"/>
+      <text x="447" y="22" fill="#f8fafc" font-size="12" font-weight="700">Workout Plan Viewer</text>
+      <text x="447" y="38" fill="#94a3b8" font-size="10">Target Reps, Sets, Rest</text>
+      <text x="447" y="50" fill="#94a3b8" font-size="10">Adaptive Progression Engine</text>
+
+      <!-- Module 4 -->
+      <rect x="0" y="68" width="310" height="60" rx="8" fill="#064e3b" fill-opacity="0.3" stroke="#10b981" stroke-width="1.2"/>
+      <text x="12" y="90" fill="#34d399" font-size="12.5" font-weight="700">🎥 Camera Workout Hero (Session)</text>
+      <text x="12" y="106" fill="#a7f3d0" font-size="10">Mirrored Video, Skeletal Overlay, Rep Counter,</text>
+      <text x="12" y="118" fill="#a7f3d0" font-size="10">Real-time Form Feedback Pill, Audio Alerts</text>
+
+      <!-- Module 5 -->
+      <rect x="325" y="68" width="305" height="60" rx="8" fill="#4c1d95" fill-opacity="0.25" stroke="#8b5cf6" stroke-width="1.2"/>
+      <text x="337" y="90" fill="#c084fc" font-size="12.5" font-weight="700">💬 AI Fitness Coach Drawer</text>
+      <text x="337" y="106" fill="#ddd6fe" font-size="10">Multi-turn Conversational Assistant</text>
+      <text x="337" y="118" fill="#ddd6fe" font-size="10">Integrated User Context &amp; Workout History</text>
+    </g>
+  </g>
+
+  <!-- LAYER 3: CLIENT-SIDE INTELLIGENCE & REAL-TIME CV PIPELINE -->
+  <g transform="translate(85, 425)">
+    <rect x="0" y="0" width="660" height="385" rx="14" fill="url(#cv-card)" stroke="#059669" stroke-width="1.5"/>
+    
+    <!-- CV Pipeline Header -->
+    <rect x="16" y="14" width="320" height="24" rx="6" fill="#059669" fill-opacity="0.3"/>
+    <text x="26" y="30" fill="#34d399" font-size="12" font-weight="800" letter-spacing="0.5">CLIENT-SIDE INTELLIGENCE (MEDIA-PIPE &amp; CV)</text>
+    <text x="350" y="30" fill="#6ee7b7" font-size="11" font-weight="500">100% In-Browser • 0ms Cloud Latency</text>
+
+    <!-- Sub-step 1: Webcam Feed -->
+    <g transform="translate(18, 50)">
+      <rect x="0" y="0" width="180" height="80" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1"/>
+      <text x="12" y="24" fill="#34d399" font-size="11.5" font-weight="700">📷 Browser Webcam</text>
+      <text x="12" y="42" fill="#94a3b8" font-size="10">navigator.mediaDevices</text>
+      <text x="12" y="56" fill="#94a3b8" font-size="10">60 FPS Video Stream</text>
+      <text x="12" y="70" fill="#64748b" font-size="9.5">Local Canvas / Video Tag</text>
+    </g>
+
+    <!-- Arrow 1 -> 2 -->
+    <path d="M 205 90 L 230 90" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+    <!-- Sub-step 2: MediaPipe PoseLandmarker -->
+    <g transform="translate(238, 50)">
+      <rect x="0" y="0" width="200" height="80" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1"/>
+      <text x="12" y="24" fill="#34d399" font-size="11.5" font-weight="700">⚡ MediaPipe Vision</text>
+      <text x="12" y="42" fill="#94a3b8" font-size="10">Tasks-Vision WebAssembly</text>
+      <text x="12" y="56" fill="#94a3b8" font-size="10">WebGL / GPU Acceleration</text>
+      <text x="12" y="70" fill="#38bdf8" font-size="9.5">33 3D Skeletal Landmarks</text>
+    </g>
+
+    <!-- Arrow 2 -> 3 -->
+    <path d="M 445 90 L 470 90" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+    <!-- Sub-step 3: Geometry & Smoothing Engine -->
+    <g transform="translate(478, 50)">
+      <rect x="0" y="0" width="165" height="80" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1"/>
+      <text x="10" y="24" fill="#34d399" font-size="11.5" font-weight="700">📐 Angle &amp; Smoothing</text>
+      <text x="10" y="42" fill="#94a3b8" font-size="10">Exponential Smoothing</text>
+      <text x="10" y="56" fill="#94a3b8" font-size="10">3D Vector Joint Angles</text>
+      <text x="10" y="70" fill="#64748b" font-size="9.5">Jitter Rejection Filter</text>
+    </g>
+
+    <!-- Arrow down to Exercise Analyzers -->
+    <path d="M 338 135 L 338 155" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+    <!-- Sub-step 4: Exercise State-Machine Analyzers -->
+    <g transform="translate(18, 160)">
+      <rect x="0" y="0" width="624" height="110" rx="10" fill="#091824" stroke="#0284c7" stroke-width="1.2"/>
+      <text x="16" y="22" fill="#38bdf8" font-size="12" font-weight="700">EXERCISE RECOGNITION &amp; BIOMECHANICAL STATE MACHINES</text>
+      <text x="430" y="22" fill="#94a3b8" font-size="10.5">Strict Biomechanical Validation</text>
+
+      <!-- Squat Analyzer -->
+      <g transform="translate(14, 34)">
+        <rect x="0" y="0" width="190" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <text x="10" y="18" fill="#f1f5f9" font-size="11" font-weight="700">🏋️ Squat Analyzer</text>
+        <text x="10" y="32" fill="#94a3b8" font-size="9.5">Hip/Knee/Ankle Depth &lt; 95°</text>
+        <text x="10" y="45" fill="#94a3b8" font-size="9.5">Back Angle Check (&gt; 45°)</text>
+        <text x="10" y="58" fill="#10b981" font-size="9.5">Knee Valgus / Caving Alert</text>
+      </g>
+
+      <!-- Push-up Analyzer -->
+      <g transform="translate(216, 34)">
+        <rect x="0" y="0" width="190" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <text x="10" y="18" fill="#f1f5f9" font-size="11" font-weight="700">💪 Push-up Analyzer</text>
+        <text x="10" y="32" fill="#94a3b8" font-size="9.5">Elbow Flexion Depth &lt; 95°</text>
+        <text x="10" y="45" fill="#94a3b8" font-size="9.5">Elbow Extension Lock &gt; 155°</text>
+        <text x="10" y="58" fill="#10b981" font-size="9.5">Body Plank Line (&gt; 145°)</text>
+      </g>
+
+      <!-- Bicep Curl Analyzer -->
+      <g transform="translate(418, 34)">
+        <rect x="0" y="0" width="190" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <text x="10" y="18" fill="#f1f5f9" font-size="11" font-weight="700">💥 Bicep Curl Analyzer</text>
+        <text x="10" y="32" fill="#94a3b8" font-size="9.5">Peak Flexion Angle &lt; 50°</text>
+        <text x="10" y="45" fill="#94a3b8" font-size="9.5">Full Extension &gt; 150°</text>
+        <text x="10" y="58" fill="#10b981" font-size="9.5">Elbow Drift &amp; Swing Guard</text>
+      </g>
+    </g>
+
+    <!-- Arrow down to Outputs -->
+    <path d="M 338 275 L 338 290" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+    <!-- Sub-step 5: Real-time Outputs -->
+    <g transform="translate(18, 295)">
+      <rect x="0" y="0" width="624" height="74" rx="10" fill="#052e16" fill-opacity="0.5" stroke="#10b981" stroke-width="1.2"/>
+      <text x="16" y="20" fill="#34d399" font-size="11.5" font-weight="700">REAL-TIME IN-BROWSER FEEDBACK &amp; LOCAL TELEMETRY</text>
+      
+      <!-- Metrics Pills -->
+      <g transform="translate(14, 28)">
+        <rect x="0" y="0" width="190" height="36" rx="6" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+        <text x="10" y="16" fill="#a7f3d0" font-size="10.5" font-weight="700">Automated Rep Counter</text>
+        <text x="10" y="30" fill="#6ee7b7" font-size="9">State machine: UP ➔ DOWN ➔ REP</text>
+
+        <rect x="202" y="0" width="200" height="36" rx="6" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+        <text x="10" y="16" fill="#a7f3d0" font-size="10.5" font-weight="700">Biomechanical Form Score</text>
+        <text x="10" y="30" fill="#6ee7b7" font-size="9">Frame-by-frame joint accuracy %</text>
+
+        <rect x="414" y="0" width="196" height="36" rx="6" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+        <text x="10" y="16" fill="#a7f3d0" font-size="10.5" font-weight="700">Instant Audio &amp; Visual Cue</text>
+        <text x="10" y="30" fill="#6ee7b7" font-size="9">"Go lower" • "Keep back straight"</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================================================================= -->
+  <!-- COLUMN 2: DATA BRIDGES & PRIVACY BARRIER (Center: x=770 to 860)   -->
+  <!-- ================================================================= -->
+  
+  <!-- Privacy Barrier Line -->
+  <line x1="810" y1="100" x2="810" y2="820" stroke="#334155" stroke-dasharray="6 6" stroke-width="2"/>
+  
+  <g transform="translate(775, 410)">
+    <rect x="-40" y="0" width="150" height="28" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1.2"/>
+    <text x="35" y="18" fill="#94a3b8" font-size="10" font-weight="700" text-anchor="middle">🔒 PRIVACY PERIMETER</text>
+  </g>
+
+  <!-- Data Flow 1: Session Summary Data Only (JSON) -->
+  <path d="M 745 350 C 785 350, 810 330, 875 330" fill="none" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrow-emerald)"/>
+  <rect x="750" y="315" width="115" height="22" rx="4" fill="#0f172a" stroke="#10b981" stroke-width="0.8"/>
+  <text x="807" y="330" fill="#34d399" font-size="9.5" font-weight="700" text-anchor="middle">Session JSON (Reps/Score)</text>
+
+  <!-- Data Flow 2: AI Workouts & Coaching (JSON In/Out) -->
+  <path d="M 875 560 C 815 560, 790 530, 745 530" fill="none" stroke="#a855f7" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+  <rect x="750" y="555" width="115" height="22" rx="4" fill="#0f172a" stroke="#a855f7" stroke-width="0.8"/>
+  <text x="807" y="570" fill="#c084fc" font-size="9.5" font-weight="700" text-anchor="middle">AI Workout &amp; Coach JSON</text>
+
+
+  <!-- ================================================================= -->
+  <!-- COLUMN 3: CLOUD BACKEND & AI ENGINE (Right: x=880 to 1540)        -->
+  <!-- ================================================================= -->
+
+  <!-- Boundary Container for Cloud Backend -->
+  <rect x="880" y="90" width="660" height="740" rx="18" fill="url(#client-card)" stroke="#1e293b" stroke-width="1.5" filter="url(#shadow)"/>
+
+  <!-- Boundary Header -->
+  <rect x="880" y="90" width="660" height="48" rx="18" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+  <rect x="900" y="103" width="120" height="22" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+  <text x="960" y="118" fill="#818cf8" font-size="10.5" font-weight="700" text-anchor="middle">CLOUD SERVICES</text>
+  <text x="1030" y="120" fill="#ffffff" font-size="14" font-weight="700">Supabase Backend &amp; Generative AI</text>
+  <text x="1440" y="120" fill="#94a3b8" font-size="11.5" font-weight="500">Secure Edge Network</text>
+
+  <!-- LAYER 4: SUPABASE PLATFORM -->
+  <g transform="translate(905, 155)">
+    <rect x="0" y="0" width="610" height="250" rx="14" fill="url(#cloud-card)" stroke="#3b82f6" stroke-width="1.2"/>
+    
+    <!-- Header -->
+    <rect x="15" y="12" width="180" height="22" rx="5" fill="#1d4ed8" fill-opacity="0.3"/>
+    <text x="25" y="27" fill="#60a5fa" font-size="11.5" font-weight="700">SUPABASE CLOUD PLATFORM</text>
+    <text x="205" y="27" fill="#94a3b8" font-size="11">PostgreSQL Database • Row Level Security (RLS) • Auth</text>
+
+    <!-- Supabase Auth -->
+    <g transform="translate(15, 45)">
+      <rect x="0" y="0" width="280" height="60" rx="8" fill="#0f172a" stroke="#2563eb" stroke-width="1"/>
+      <text x="12" y="22" fill="#ffffff" font-size="12" font-weight="700">🔐 Supabase Authentication</text>
+      <text x="12" y="38" fill="#94a3b8" font-size="10">JWT Bearer Tokens • Secure Session Storage</text>
+      <text x="12" y="50" fill="#94a3b8" font-size="10">User Identity &amp; Role Verification</text>
+    </g>
+
+    <!-- Supabase RLS Policy Box -->
+    <g transform="translate(305, 45)">
+      <rect x="0" y="0" width="290" height="60" rx="8" fill="#0f172a" stroke="#2563eb" stroke-width="1"/>
+      <text x="12" y="22" fill="#ffffff" font-size="12" font-weight="700">🛡️ Row Level Security (RLS)</text>
+      <text x="12" y="38" fill="#94a3b8" font-size="10">Strict Isolation: auth.uid() = user_id</text>
+      <text x="12" y="50" fill="#94a3b8" font-size="10">Users cannot access peer workout data</text>
+    </g>
+
+    <!-- PostgreSQL Relational Tables -->
+    <g transform="translate(15, 115)">
+      <rect x="0" y="0" width="580" height="120" rx="10" fill="#091122" stroke="#1e3a8a" stroke-width="1"/>
+      <text x="14" y="20" fill="#93c5fd" font-size="11" font-weight="700">RELATIONAL POSTGRESQL TABLES (PERSISTENCE LAYER)</text>
+
+      <g transform="translate(10, 30)">
+        <!-- Table 1: profiles -->
+        <rect x="0" y="0" width="130" height="78" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <text x="8" y="16" fill="#38bdf8" font-size="10" font-weight="700">📁 profiles</text>
+        <text x="8" y="32" fill="#94a3b8" font-size="8.5">id (uuid, PK)</text>
+        <text x="8" y="44" fill="#94a3b8" font-size="8.5">fitness_level</text>
+        <text x="8" y="56" fill="#94a3b8" font-size="8.5">primary_goal</text>
+        <text x="8" y="68" fill="#94a3b8" font-size="8.5">workout_duration</text>
+
+        <!-- Table 2: workout_plans -->
+        <rect x="140" y="0" width="135" height="78" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <text x="8" y="16" fill="#38bdf8" font-size="10" font-weight="700">📋 workout_plans</text>
+        <text x="8" y="32" fill="#94a3b8" font-size="8.5">id (uuid, PK)</text>
+        <text x="8" y="44" fill="#94a3b8" font-size="8.5">user_id (FK)</text>
+        <text x="8" y="56" fill="#94a3b8" font-size="8.5">exercises (jsonb)</text>
+        <text x="8" y="68" fill="#94a3b8" font-size="8.5">target_reps/sets</text>
+
+        <!-- Table 3: workout_sessions -->
+        <rect x="285" y="0" width="135" height="78" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="1"/>
+        <text x="8" y="16" fill="#34d399" font-size="10" font-weight="700">📊 workout_sessions</text>
+        <text x="8" y="32" fill="#94a3b8" font-size="8.5">id (uuid, PK)</text>
+        <text x="8" y="44" fill="#94a3b8" font-size="8.5">user_id (FK)</text>
+        <text x="8" y="56" fill="#94a3b8" font-size="8.5">completed_reps</text>
+        <text x="8" y="68" fill="#94a3b8" font-size="8.5">avg_form_score</text>
+
+        <!-- Table 4: progress_snapshots -->
+        <rect x="430" y="0" width="130" height="78" rx="6" fill="#0f172a" stroke="#a855f7" stroke-width="1"/>
+        <text x="8" y="16" fill="#c084fc" font-size="10" font-weight="700">🏆 progress &amp; badges</text>
+        <text x="8" y="32" fill="#94a3b8" font-size="8.5">activity_score (0-100)</text>
+        <text x="8" y="44" fill="#94a3b8" font-size="8.5">30/30/20/20 formula</text>
+        <text x="8" y="56" fill="#94a3b8" font-size="8.5">active_streak_days</text>
+        <text x="8" y="68" fill="#94a3b8" font-size="8.5">earned_badge_ids</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- LAYER 5: SERVER-SIDE AI PIPELINE (EDGE FUNCTIONS + GEMINI) -->
+  <g transform="translate(905, 420)">
+    <rect x="0" y="0" width="610" height="275" rx="14" fill="url(#ai-card)" stroke="#8b5cf6" stroke-width="1.5"/>
+    
+    <!-- AI Header -->
+    <rect x="15" y="12" width="260" height="22" rx="5" fill="#7c3aed" fill-opacity="0.3"/>
+    <text x="25" y="27" fill="#c084fc" font-size="11.5" font-weight="700">SERVER-SIDE AI ENGINE (GEMINI 3.8 FLASH)</text>
+    <text x="285" y="27" fill="#ddd6fe" font-size="10.5">Secure API Proxy • Zero Client-Side Secret Leak</text>
+
+    <!-- Supabase Edge Functions Layer -->
+    <g transform="translate(15, 44)">
+      <rect x="0" y="0" width="580" height="95" rx="8" fill="#0f172a" stroke="#6d28d9" stroke-width="1.2"/>
+      <text x="12" y="18" fill="#a78bfa" font-size="11" font-weight="700">DENO EDGE FUNCTIONS (SUPABASE RUNTIME)</text>
+      <text x="350" y="18" fill="#94a3b8" font-size="9.5">Injected GEMINI_API_KEY Vault</text>
+
+      <!-- Function 1 -->
+      <g transform="translate(12, 28)">
+        <rect x="0" y="0" width="175" height="55" rx="6" fill="#1e1b4b" stroke="#4338ca" stroke-width="1"/>
+        <text x="8" y="16" fill="#e0e7ff" font-size="10" font-weight="700">⚡ generate-workout</text>
+        <text x="8" y="30" fill="#94a3b8" font-size="8.5">Profile context + target sets</text>
+        <text x="8" y="42" fill="#94a3b8" font-size="8.5">Adaptive intensity scaling</text>
+      </g>
+
+      <!-- Function 2 -->
+      <g transform="translate(197, 28)">
+        <rect x="0" y="0" width="180" height="55" rx="6" fill="#1e1b4b" stroke="#4338ca" stroke-width="1"/>
+        <text x="8" y="16" fill="#e0e7ff" font-size="10" font-weight="700">⚡ post-workout-feedback</text>
+        <text x="8" y="30" fill="#94a3b8" font-size="8.5">Session metrics analysis</text>
+        <text x="8" y="42" fill="#94a3b8" font-size="8.5">Form coaching insights</text>
+      </g>
+
+      <!-- Function 3 -->
+      <g transform="translate(387, 28)">
+        <rect x="0" y="0" width="180" height="55" rx="6" fill="#1e1b4b" stroke="#4338ca" stroke-width="1"/>
+        <text x="8" y="16" fill="#e0e7ff" font-size="10" font-weight="700">⚡ ai-coach</text>
+        <text x="8" y="30" fill="#94a3b8" font-size="8.5">Multi-turn chat completion</text>
+        <text x="8" y="42" fill="#94a3b8" font-size="8.5">Safety &amp; recovery advice</text>
+      </g>
+    </g>
+
+    <!-- Arrow from Edge Functions down to Gemini -->
+    <path d="M 305 142 L 305 158" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
+
+    <!-- Gemini 3.8 Flash Foundation Model -->
+    <g transform="translate(15, 162)">
+      <rect x="0" y="0" width="580" height="98" rx="10" fill="#180d30" stroke="#a855f7" stroke-width="1.5"/>
+      <circle cx="28" cy="24" r="12" fill="#a855f7" fill-opacity="0.3"/>
+      <text x="28" y="28" fill="#e9d5ff" font-size="13" font-weight="700" text-anchor="middle">✨</text>
+      
+      <text x="48" y="22" fill="#f3e8ff" font-size="13" font-weight="800">Google Gemini 3.8 Flash</text>
+      <text x="220" y="22" fill="#a855f7" font-size="10.5" font-weight="600">Primary Large Multimodal / Language Model</text>
+
+      <g transform="translate(16, 42)">
+        <rect x="0" y="0" width="175" height="44" rx="6" fill="#0f172a" stroke="#581c87" stroke-width="1"/>
+        <text x="8" y="16" fill="#e9d5ff" font-size="9.5" font-weight="700">System Prompt Guardrails</text>
+        <text x="8" y="30" fill="#94a3b8" font-size="8.5">Beginner safety &amp; student focus</text>
+
+        <rect x="185" y="0" width="180" height="44" rx="6" fill="#0f172a" stroke="#581c87" stroke-width="1"/>
+        <text x="8" y="16" fill="#e9d5ff" font-size="9.5" font-weight="700">Structured JSON Output</text>
+        <text x="8" y="30" fill="#94a3b8" font-size="8.5">Deterministic schema parsing</text>
+
+        <rect x="375" y="0" width="175" height="44" rx="6" fill="#0f172a" stroke="#581c87" stroke-width="1"/>
+        <text x="8" y="16" fill="#e9d5ff" font-size="9.5" font-weight="700">Low-Latency Generation</text>
+        <text x="8" y="30" fill="#94a3b8" font-size="8.5">Sub-second response streaming</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- LAYER 6: HOSTING & INFRASTRUCTURE -->
+  <g transform="translate(905, 710)">
+    <rect x="0" y="0" width="610" height="98" rx="12" fill="#090f1d" stroke="#334155" stroke-width="1"/>
+    
+    <text x="16" y="22" fill="#94a3b8" font-size="11" font-weight="700">DEPLOYMENT &amp; HOSTING TOPOLOGY</text>
+
+    <!-- Host 1: Vercel -->
+    <g transform="translate(16, 32)">
+      <rect x="0" y="0" width="275" height="52" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1"/>
+      <text x="12" y="20" fill="#ffffff" font-size="11" font-weight="700">▲ Vercel Edge Network</text>
+      <text x="12" y="34" fill="#94a3b8" font-size="9">Hosts React + Vite SPA Frontend</text>
+      <text x="12" y="45" fill="#38bdf8" font-size="8.5">Global Anycast CDN • Instant Cache Invalidation</text>
+    </g>
+
+    <!-- Host 2: Supabase Managed -->
+    <g transform="translate(305, 32)">
+      <rect x="0" y="0" width="290" height="52" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1"/>
+      <text x="12" y="20" fill="#ffffff" font-size="11" font-weight="700">⚡ Supabase Cloud Infrastructure</text>
+      <text x="12" y="34" fill="#94a3b8" font-size="9">Managed PostgreSQL, Edge Network &amp; Auth</text>
+      <text x="12" y="45" fill="#34d399" font-size="8.5">Encrypted at rest &amp; in transit (TLS 1.3)</text>
+    </g>
+  </g>
+
+  <!-- ================================================================= -->
+  <!-- BOTTOM FOOTER & ARCHITECTURE KEY                                 -->
+  <!-- ================================================================= -->
+  <g transform="translate(60, 845)">
+    <rect x="0" y="0" width="1480" height="40" rx="8" fill="#0b1322" stroke="#1e293b" stroke-width="1"/>
+    
+    <!-- Legend item 1 -->
+    <circle cx="20" cy="20" r="5" fill="#10b981"/>
+    <text x="32" y="24" fill="#a7f3d0" font-size="11" font-weight="600">Real-Time Computer Vision Loop (Client Browser Only)</text>
+
+    <!-- Legend item 2 -->
+    <circle cx="360" cy="20" r="5" fill="#38bdf8"/>
+    <text x="372" y="24" fill="#bae6fd" font-size="11" font-weight="600">Client-to-Database Session Persistence (Supabase RLS)</text>
+
+    <!-- Legend item 3 -->
+    <circle cx="730" cy="20" r="5" fill="#a855f7"/>
+    <text x="742" y="24" fill="#f3e8ff" font-size="11" font-weight="600">Server-Side Generative AI Pipeline (Gemini 3.8 Flash via Edge Functions)</text>
+
+    <!-- Legend item 4 -->
+    <text x="1260" y="24" fill="#64748b" font-size="10.5" font-weight="500">FitNova • SIH Presentation Asset</text>
+  </g>
+
+</svg>
