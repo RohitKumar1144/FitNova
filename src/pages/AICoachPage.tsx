@@ -12,8 +12,9 @@ import {
   RotateCcw,
   Compass,
 } from 'lucide-react'
-import { useAuth } from '../lib/supabase/auth'
+import { useAuth, isDemoMode } from '../lib/supabase/auth'
 import { sendAICoachMessage, type ChatMessage } from '../lib/ai/aiCoach'
+import DemoModeBadge from '../components/common/DemoModeBadge'
 
 interface DisplayMessage {
   id: string
@@ -166,6 +167,7 @@ export default function AICoachPage() {
               <Sparkles className="w-3.5 h-3.5" />
               <span>AI Coach</span>
             </div>
+            {isDemoMode(user) && <DemoModeBadge size="sm" />}
           </div>
 
           <div className="flex items-center gap-2">

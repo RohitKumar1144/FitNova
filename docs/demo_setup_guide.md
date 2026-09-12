@@ -36,7 +36,30 @@ This guide accompanies [`docs/seed_demo_data.sql`](./seed_demo_data.sql) to popu
 
 ---
 
-## 2. Step-by-Step Execution in Supabase
+## 2. 1-Click Demo Mode (SIH Presentation Feature)
+
+FitNova includes a production-grade, passwordless **Demo Mode** built specifically for high-stakes presentations and judge evaluations. Judges can explore the full authenticated experience with real data without creating an account or typing credentials.
+
+### Architecture & Security (Option A: Token Broker)
+- **Supabase Edge Function (`demo-login`)**: Runs server-side on Supabase Edge infrastructure.
+- **Zero Client Secrets**: No passwords, secret keys, or service-role keys are shipped in the client bundle or stored in `.env.local`.
+- **Dynamic Profile Lookup**: The Edge Function queries Supabase for the dedicated demo profile (`profiles.full_name ILIKE '%Demo%'` or `email.includes('demo')`).
+- **Magic Link Token Exchange**: Uses Supabase Admin auth API (`generateLink({ type: 'magiclink' })`) combined with server-side OTP verification (`verifyOtp`) to generate a valid, real JWT session without triggering external emails.
+- **Client Hydration**: Client securely receives the access and refresh tokens, sets the Supabase auth session (`supabase.auth.setSession()`), sets a local `fitnova_demo_mode` flag, and routes directly to `/dashboard`.
+
+### How to Use Demo Mode
+1. **From Landing Page (`/`)**:
+   - Click the prominent secondary CTA button **"Try Demo"** in the Hero section or the navbar.
+2. **From Auth Page (`/auth`)**:
+   - Click **"Try Demo Account (1-Click SIH Access)"** under the sign-in form.
+3. **In-App Demo Indicator**:
+   - A glowing amber **"DEMO MODE"** pill badge is rendered in the top app navigation across all pages (`/dashboard`, `/workout-plan`, `/progress`, `/ai-coach`, `/workout-session`).
+4. **Exiting Demo Mode**:
+   - Click **"Sign Out"** in any navigation bar. The active session is terminated, and the demo flag is cleared from local storage.
+
+---
+
+## 3. Step-by-Step Execution in Supabase (Data Seeding)
 
 1. Log into your [Supabase Dashboard](https://supabase.com/dashboard).
 2. Select your FitNova project.
@@ -56,7 +79,7 @@ This guide accompanies [`docs/seed_demo_data.sql`](./seed_demo_data.sql) to popu
 
 ---
 
-## 3. UI Verification Flow for SIH Judges
+## 4. UI Verification Flow for SIH Judges
 
 Open your browser with the demo account signed in:
 

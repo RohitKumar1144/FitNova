@@ -25,6 +25,8 @@ import type { SquatPhase, PushupPhase, BicepCurlPhase, FormCue, FormRating, Exer
 import { generateWorkoutFeedback } from '../lib/ai/generateFeedback'
 import { saveWorkoutSession } from '../lib/supabase/queries'
 import { supabase } from '../lib/supabase/client'
+import { isDemoMode } from '../lib/supabase/auth'
+import DemoModeBadge from '../components/common/DemoModeBadge'
 import type { AIPostWorkoutFeedback } from '../types/feedback'
 
 export type SessionStatus = 'idle' | 'active' | 'paused' | 'ended'
@@ -552,6 +554,7 @@ export default function WorkoutSessionPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {isDemoMode() && <DemoModeBadge size="sm" />}
             {/* Timer Badge */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono font-bold text-slate-200 shadow-inner">
               <Clock className="w-3.5 h-3.5 text-cyan-400" />

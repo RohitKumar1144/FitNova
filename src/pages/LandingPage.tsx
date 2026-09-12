@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Activity,
   Brain,
@@ -21,11 +21,38 @@ import {
   MessageSquare,
   Eye,
   ArrowRight,
-  Dumbbell
+  Dumbbell,
+  Loader2,
+  Play,
+  AlertCircle
 } from 'lucide-react'
+import { signInAsDemoUser } from '../lib/supabase/auth'
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
+  const navigate = useNavigate()
+
+  const handleTryDemo = async () => {
+    if (demoLoading) return
+    setDemoLoading(true)
+    setDemoError(null)
+
+    try {
+      const { error } = await signInAsDemoUser()
+      if (error) {
+        setDemoError(error.message)
+      } else {
+        navigate('/dashboard')
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Demo login failed.'
+      setDemoError(msg)
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false)
@@ -179,7 +206,21 @@ export default function LandingPage() {
           </div>
 
           {/* Right CTA */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleTryDemo}
+              disabled={demoLoading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-400 text-sm font-semibold shadow-sm transition-all duration-200 cursor-pointer disabled:opacity-60"
+            >
+              {demoLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-amber-300 stroke-none" />
+              )}
+              <span>Try Demo</span>
+            </button>
+
             <Link
               to="/auth"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-semibold shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]"
@@ -226,7 +267,24 @@ export default function LandingPage() {
             >
               Features
             </button>
-            <div className="pt-2">
+            <div className="pt-2 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  handleTryDemo()
+                }}
+                disabled={demoLoading}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold shadow-md cursor-pointer disabled:opacity-60"
+              >
+                {demoLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                ) : (
+                  <Play className="w-4 h-4 fill-amber-300 stroke-none" />
+                )}
+                <span>Try Demo (Instant Access)</span>
+              </button>
+
               <Link
                 to="/auth"
                 onClick={() => setMobileMenuOpen(false)}
@@ -264,7 +322,7 @@ export default function LandingPage() {
               </p>
 
               {/* CTAs */}
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
                 <Link
                   to="/auth"
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-base shadow-xl shadow-emerald-500/25 transition-all duration-200 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0"
@@ -275,12 +333,41 @@ export default function LandingPage() {
 
                 <button
                   type="button"
+                  onClick={handleTryDemo}
+                  disabled={demoLoading}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-amber-500/25 to-emerald-500/15 hover:from-amber-500/25 hover:to-emerald-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400 font-bold text-base shadow-xl shadow-amber-950/20 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 cursor-pointer"
+                >
+                  {demoLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
+                      <span>Launching Demo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-amber-300 stroke-none" />
+                      <span>Try Demo</span>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Instant
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => scrollToSection('how-it-works')}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-800 hover:border-slate-700 font-semibold text-base transition-all duration-200 cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 font-medium text-base transition-all duration-200 cursor-pointer"
                 >
                   See How It Works
                 </button>
               </div>
+
+              {demoError && (
+                <div className="mb-6 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2 max-w-md mx-auto lg:mx-0">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{demoError}</span>
+                </div>
+              )}
 
               {/* Quick Trust Highlights */}
               <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-800/80 max-w-md mx-auto lg:mx-0 text-left">

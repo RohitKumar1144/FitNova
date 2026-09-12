@@ -21,7 +21,7 @@ import {
   Zap,
   Gauge,
 } from 'lucide-react'
-import { signOut, useAuth } from '../lib/supabase/auth'
+import { signOut, useAuth, isDemoMode } from '../lib/supabase/auth'
 import {
   getProfile,
   getDashboardStats,
@@ -34,6 +34,7 @@ import type { Profile } from '../types/profile'
 import type { WorkoutPlanRecord } from '../types/workout'
 import WorkoutPlanCard from '../components/workout/WorkoutPlanCard'
 import StreakBadge from '../components/progress/StreakBadge'
+import DemoModeBadge from '../components/common/DemoModeBadge'
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
@@ -172,6 +173,8 @@ export default function DashboardPage() {
 
           {/* Right Area: User badge & Sign Out */}
           <div className="hidden md:flex items-center gap-4">
+            {isDemoMode(user) && <DemoModeBadge />}
+
             <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
               <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <User className="w-3.5 h-3.5" />
@@ -191,6 +194,7 @@ export default function DashboardPage() {
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center gap-2">
+            {isDemoMode(user) && <DemoModeBadge showTextOnMobile={false} />}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -202,39 +206,44 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Mobile Dropdown */}
+        {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-slate-950/95 border-b border-slate-800 px-4 pt-3 pb-6 space-y-3">
-            <div className="flex items-center gap-2 pb-3 mb-2 border-b border-slate-800 text-xs text-slate-300">
-              <User className="w-4 h-4 text-emerald-400" />
-              <span>Signed in as <strong className="text-white">{profile?.full_name || user.email}</strong></span>
+          <div className="md:hidden bg-slate-950/95 border-b border-slate-800 px-4 pt-2 pb-6 space-y-3">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <span className="font-semibold text-slate-200">{profile?.full_name || user.email}</span>
+              </div>
+              {isDemoMode(user) && <DemoModeBadge showTextOnMobile={true} />}
             </div>
 
             <Link
               to="/dashboard"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-lg text-sm font-semibold text-emerald-400 bg-emerald-500/10"
+              className="block px-3 py-2 rounded-lg text-base font-medium text-emerald-400 bg-emerald-500/10"
             >
               Dashboard
             </Link>
             <Link
               to="/workout-plan"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
+              className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-slate-900"
             >
               Workout Plan
             </Link>
             <Link
               to="/progress"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
+              className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-slate-900"
             >
               Progress
             </Link>
             <Link
               to="/ai-coach"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
+              className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-slate-900"
             >
               AI Coach
             </Link>
@@ -259,9 +268,12 @@ export default function DashboardPage() {
         {/* 2. WELCOME HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              Good morning, {getFirstName()} {'\u{1F44B}'}
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                Good morning, {getFirstName()} {'\u{1F44B}'}
+              </h1>
+              {isDemoMode(user) && <DemoModeBadge showTextOnMobile={true} />}
+            </div>
             <p className="text-sm sm:text-base text-slate-400 mt-1">
               Ready to work on your fitness today?
             </p>

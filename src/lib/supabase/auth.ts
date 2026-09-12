@@ -16,7 +16,57 @@ export async function signInWithEmail(email: string, password: string) {
   })
 }
 
+export async function signInAsDemoUser(): Promise<{ data: Session | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase.functions.invoke('demo-login', {
+      method: 'POST',
+    })
+
+    if (error) {
+      return { data: null, error: new Error(error.message || 'Failed to authenticate demo user.') }
+    }
+
+    if (data?.session?.access_token && data?.session?.refresh_token) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      })
+
+      if (sessionError) {
+        return { data: null, error: sessionError }
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fitnova_demo_mode', 'true')
+      }
+
+      return { data: sessionData.session, error: null }
+    }
+
+    return {
+      data: null,
+      error: new Error(data?.error || 'Failed to receive demo session tokens.'),
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unexpected demo login error.'
+    return { data: null, error: new Error(msg) }
+  }
+}
+
+export function isDemoMode(user?: User | null): boolean {
+  if (typeof window !== 'undefined' && localStorage.getItem('fitnova_demo_mode') === 'true') {
+    return true
+  }
+  if (user?.email && user.email.toLowerCase().includes('demo')) {
+    return true
+  }
+  return false
+}
+
 export async function signOut() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('fitnova_demo_mode')
+  }
   return await supabase.auth.signOut()
 }
 

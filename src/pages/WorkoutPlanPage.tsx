@@ -21,11 +21,12 @@ import {
   TrendingDown,
   Minus,
 } from 'lucide-react'
-import { signOut, useAuth } from '../lib/supabase/auth'
+import { signOut, useAuth, isDemoMode } from '../lib/supabase/auth'
 import { getLatestWorkoutPlan } from '../lib/supabase/queries'
 import { generateWorkoutPlan } from '../lib/ai/generateWorkoutPlan'
 import type { WorkoutPlan } from '../types/workout'
 import ExerciseCard from '../components/workout/ExerciseCard'
+import DemoModeBadge from '../components/common/DemoModeBadge'
 
 export default function WorkoutPlanPage() {
   const { user, loading: authLoading } = useAuth()
@@ -132,6 +133,7 @@ export default function WorkoutPlanPage() {
           </div>
 
           <div className="flex items-center gap-4">
+            {isDemoMode(user) && <DemoModeBadge />}
             <span className="text-xs text-slate-400 hidden sm:inline-flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-emerald-400" />
               {user.email}

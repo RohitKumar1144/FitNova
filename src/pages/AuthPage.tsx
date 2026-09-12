@@ -13,7 +13,7 @@ import {
   Sparkles,
   ChevronRight,
 } from 'lucide-react'
-import { signInWithEmail, signUpWithEmail, useAuth } from '../lib/supabase/auth'
+import { signInWithEmail, signUpWithEmail, signInAsDemoUser, useAuth } from '../lib/supabase/auth'
 
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -24,11 +24,36 @@ export default function AuthPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const [loading, setLoading] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const { isAuthenticated, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+
+  const handleDemoLogin = async () => {
+    if (demoLoading || loading) return
+    setDemoLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      const { error: demoError } = await signInAsDemoUser()
+      if (demoError) {
+        setError(demoError.message)
+      } else {
+        setSuccessMessage('Demo session authenticated! Redirecting to dashboard...')
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true })
+        }, 500)
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to launch demo mode.'
+      setError(errMsg)
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -324,6 +349,28 @@ export default function AuthPage() {
             )}
           </button>
         </form>
+
+        {/* 1-Click Demo Mode Option */}
+        <div className="mt-5 pt-5 border-t border-slate-800/80">
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={demoLoading || loading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/15 to-amber-500/10 hover:from-amber-500/20 hover:to-amber-500/20 border border-amber-500/30 hover:border-amber-400 text-amber-300 text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-60"
+          >
+            {demoLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                <span>Authenticating Demo Session...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Try Demo Account (1-Click SIH Access)</span>
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Switch mode hint */}
         <div className="mt-6 text-center text-xs text-slate-400">
