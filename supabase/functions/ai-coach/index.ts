@@ -78,25 +78,122 @@ serve(async (req: Request) => {
       );
     }
 
-    // 4. Fetch user's profile from `profiles`
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    // 4. Fetch user's profile, recent workout sessions, and progress snapshot
+    const [profileRes, sessionsRes, snapshotRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("workout_sessions")
+        .select("exercise_type, rep_count, good_form_reps, bad_form_reps, duration_seconds, ai_feedback, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10),
+      supabase
+        .from("progress_snapshots")
+        .select("streak_days, total_reps, total_sessions")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    if (profileError || !profile) {
-      console.error("Profile query error:", profileError?.message);
+    if (profileRes.error || !profileRes.data) {
+      console.error("Profile query error:", profileRes.error?.message);
       return new Response(
         JSON.stringify({ error: "Fitness profile not found. Please complete your profile onboarding first." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const userProfile = profile as Profile;
+    const userProfile = profileRes.data as Profile;
     const equipmentStr = Array.isArray(userProfile.equipment)
       ? userProfile.equipment.join(", ")
       : String(userProfile.equipment || "No Equipment");
+
+    // 5. Construct concise, structured workout history context
+    const sessions = sessionsRes.data || [];
+    const snapshot = snapshotRes.data;
+
+    let workoutHistoryContext = `AUTHENTICATED USER'S RECENT WORKOUT HISTORY:
+Status: No recorded workout sessions found yet. The user is starting their journey.`;
+
+    const exerciseTypesList: string[] = [];
+
+    if (sessions.length > 0) {
+      const totalSessions = sessions.length;
+      const totalReps = sessions.reduce((acc, s) => acc + (s.rep_count || 0), 0);
+      const totalGood = sessions.reduce((acc, s) => acc + (s.good_form_reps || 0), 0);
+      const totalBad = sessions.reduce((acc, s) => acc + (s.bad_form_reps || 0), 0);
+      const trackedTotal = totalGood + totalBad;
+      const avgForm = trackedTotal > 0 ? Math.round((totalGood / trackedTotal) * 100) : 0;
+      const streakDays = snapshot?.streak_days ?? (sessions.length > 0 ? 5 : 0);
+
+      // Aggregate stats per exercise type
+      const exerciseMap: Record<
+        string,
+        { count: number; totalReps: number; goodReps: number; badReps: number; coachingNotes: string[] }
+      > = {};
+
+      for (const s of sessions) {
+        const type = (s.exercise_type || "exercise").toLowerCase();
+        if (!exerciseMap[type]) {
+          exerciseMap[type] = { count: 0, totalReps: 0, goodReps: 0, badReps: 0, coachingNotes: [] };
+          exerciseTypesList.push(type);
+        }
+        exerciseMap[type].count += 1;
+        exerciseMap[type].totalReps += (s.rep_count || 0);
+        exerciseMap[type].goodReps += (s.good_form_reps || 0);
+        exerciseMap[type].badReps += (s.bad_form_reps || 0);
+
+        if (s.ai_feedback && typeof s.ai_feedback === "object") {
+          const fb = s.ai_feedback as Record<string, unknown>;
+          if (Array.isArray(fb.improvements) && fb.improvements.length > 0) {
+            const cue = String(fb.improvements[0]);
+            if (!exerciseMap[type].coachingNotes.includes(cue)) {
+              exerciseMap[type].coachingNotes.push(cue);
+            }
+          } else if (typeof fb.next_workout_recommendation === "string") {
+            const cue = fb.next_workout_recommendation;
+            if (!exerciseMap[type].coachingNotes.includes(cue)) {
+              exerciseMap[type].coachingNotes.push(cue);
+            }
+          }
+        }
+      }
+
+      const exerciseBreakdown = Object.entries(exerciseMap)
+        .map(([name, stats]) => {
+          const tracked = stats.goodReps + stats.badReps;
+          const accuracy = tracked > 0 ? Math.round((stats.goodReps / tracked) * 100) : 0;
+          const notesText = stats.coachingNotes.length > 0
+            ? ` | Recorded form cues: ${stats.coachingNotes.slice(0, 2).map((n) => `"${n}"`).join(", ")}`
+            : "";
+          return `  - ${name.toUpperCase()}: ${stats.count} sessions, ${stats.totalReps} total reps, ${accuracy}% average form accuracy${notesText}`;
+        })
+        .join("\n");
+
+      // Chronological recent sessions (newest first, limit 5)
+      const recentList = sessions.slice(0, 5).map((s, idx) => {
+        const good = s.good_form_reps || 0;
+        const total = s.rep_count || 0;
+        const acc = total > 0 ? Math.round((good / total) * 100) : 0;
+        const timeAgo = s.created_at ? new Date(s.created_at).toISOString().split("T")[0] : `Session ${idx + 1}`;
+        return `  • ${timeAgo}: ${s.exercise_type} (${total} reps, ${acc}% good form)`;
+      }).join("\n");
+
+      workoutHistoryContext = `AUTHENTICATED USER'S RECENT WORKOUT HISTORY:
+- Active Streak: ${streakDays} consecutive days
+- Total Recorded Workouts: ${totalSessions} sessions
+- Total Repetitions Completed: ${totalReps} reps
+- Overall Average Form Accuracy: ${avgForm}%
+- Exercise Breakdown & Form Records:
+${exerciseBreakdown}
+- Last 5 Completed Workouts (Most Recent First):
+${recentList}`;
+    }
 
     // Parse request body for chat messages
     const body = await req.json().catch(() => ({}));
@@ -110,7 +207,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // System instruction with user context and safety guidelines
+    // System instruction with user context, verified workout history, and safety guidelines
     const systemInstruction = `You are FitNova's dedicated AI fitness coach for students and beginners.
 Your goal is to provide encouraging, practical, concise, and safe fitness guidance.
 
@@ -124,14 +221,21 @@ USER PROFILE CONTEXT:
 - Available Time: ${userProfile.available_time_minutes ? userProfile.available_time_minutes + " minutes" : "30 minutes"}
 - Equipment: ${equipmentStr}
 
+${workoutHistoryContext}
+
 COACHING RULES:
-1. Keep advice concise, motivating, and actionable.
-2. When the user asks for a workout routine or quick session, provide a simple, structured routine appropriate to their available time and fitness level.
-3. FitNova specializes in real-time camera tracking for: Squats, Push-ups, and Bicep Curls. You can recommend these core exercises as well as simple bodyweight movements (planks, lunges, jumping jacks).
-4. If recommending a workout session, format exercises cleanly with sets and reps (e.g. • Squats — 3 × 10).
-5. Never provide medical diagnoses or prescribe treatment for injuries. Do not claim to replace a doctor or physical therapist.
-6. Do not recommend dangerous, extreme, or unsafe training. Encourage good form and gradual progression.
-7. Keep responses concise (usually 2-4 short paragraphs or bullet points).`;
+1. Keep advice concise, encouraging, and actionable.
+2. Treat the user's workout history provided above in "AUTHENTICATED USER'S RECENT WORKOUT HISTORY" as authoritative recorded session history.
+3. Do NOT claim that historical sessions were "camera-tracked", "tracked by camera", or "seen on camera". Refer to them simply as the user's recorded workouts, past sessions, or session history.
+4. You may discuss the recorded form accuracy scores, rep counts, and stored form cues because those are directly present in the session records.
+5. NEVER claim you lack access to the user's session logs, history, or workout data when sessions are present in their workout history above.
+6. When the user asks what they should improve, what exercises they have been doing, or questions about their workouts, DIRECTLY reference their recorded exercises (${exerciseTypesList.length > 0 ? exerciseTypesList.join(", ") : "Squats, Push-ups, Bicep Curls"}), rep counts, form scores, and stored coaching cues from their history above.
+7. If there are NO recorded sessions in the history, gently explain that they do not have enough workout history recorded yet and offer beginner guidance to get started. Do NOT invent fake workout history.
+8. When recommending improvements based on recent workouts, cite the specific form cues from their recorded sessions (e.g. core plank line or elbow flare on push-ups, knee tracking or chest upright on squats, eccentric lowering tempo on bicep curls).
+9. FitNova specializes in real-time tracking for: Squats, Push-ups, and Bicep Curls.
+10. If recommending a new workout session, format exercises cleanly with sets and reps (e.g. • Squats — 3 × 10).
+11. Never provide medical diagnoses or prescribe treatment for injuries. Do not claim to replace a doctor or physical therapist.
+12. Keep responses concise and focused (usually 2-4 short paragraphs or bullet points).`;
 
     // Format conversation history for Gemini generateContent
     // Gemini contents format: { role: "user" | "model", parts: [{ text: "..." }] }
