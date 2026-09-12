@@ -123,7 +123,7 @@ function computeKneeAngle(landmarks: NormalizedLandmark[]): number {
  * Measures the angle between the mid-shoulder→mid-hip vector and the vertical axis.
  * 0° = perfectly upright.
  */
-function computeTorsoLeanAngle(landmarks: NormalizedLandmark[]): number {
+export function computeTorsoLeanAngle(landmarks: NormalizedLandmark[]): number {
   const midShoulderX =
     (landmarks[POSE_LANDMARKS.LEFT_SHOULDER].x + landmarks[POSE_LANDMARKS.RIGHT_SHOULDER].x) / 2
   const midShoulderY =
@@ -144,7 +144,7 @@ function computeTorsoLeanAngle(landmarks: NormalizedLandmark[]): number {
  * Check whether knees are caving inward.
  * Compares the horizontal spread between knees to the spread between ankles.
  */
-function isKneeAlignmentGood(landmarks: NormalizedLandmark[]): boolean {
+export function isKneeAlignmentGood(landmarks: NormalizedLandmark[]): boolean {
   const kneeSpread = Math.abs(
     landmarks[POSE_LANDMARKS.LEFT_KNEE].x - landmarks[POSE_LANDMARKS.RIGHT_KNEE].x,
   )
@@ -264,8 +264,9 @@ export function analyzeSquatFrame(
       phase: state.phase,
       kneeAngle: null,
       repCount: state.repCount,
-      currentFormCues: [{ message: 'Position your full body in frame', type: 'warning' }],
+      currentFormCues: [{ message: 'Move into full view', type: 'warning' }],
       lastRepRating: state.lastRepRating,
+      deepestAngle: state.deepestAngle,
     }
   }
 
@@ -345,6 +346,7 @@ export function analyzeSquatFrame(
     repCount: state.repCount,
     currentFormCues: formCues,
     lastRepRating: state.lastRepRating,
+    deepestAngle: state.deepestAngle,
   }
 }
 

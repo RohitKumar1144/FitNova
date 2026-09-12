@@ -39,6 +39,8 @@ export interface FrameAnalysis {
   currentFormCues: FormCue[]
   /** Quality rating of the most recently completed rep, or null if none yet. */
   lastRepRating: FormRating | null
+  /** Deepest knee angle reached during the current rep cycle (degrees). */
+  deepestAngle?: number
 }
 
 // ---------------------------------------------------------------------------

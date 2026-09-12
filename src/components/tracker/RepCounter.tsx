@@ -61,7 +61,7 @@ export default function RepCounter({
                 : 'bg-slate-500'
             }`}
           />
-          {isPaused ? 'Paused' : isTracking ? 'Tracking Active' : 'Searching'}
+          {isPaused ? 'PAUSED' : isTracking ? 'POSE DETECTED' : 'SEARCHING FOR POSE'}
         </span>
       </div>
 

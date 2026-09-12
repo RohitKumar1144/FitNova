@@ -17,6 +17,7 @@ import RepCounter from '../components/tracker/RepCounter'
 import FormFeedback from '../components/tracker/FormFeedback'
 import WorkoutSummary from '../components/tracker/WorkoutSummary'
 import { analyzeSquatFrame, resetSquatAnalyzer } from '../lib/exercises/squat'
+import { FeedbackStabilizer, type FormStatus, type FeedbackType } from '../lib/exercises/feedback'
 import type { NormalizedLandmark } from '../lib/mediapipe/poseDetector'
 import type { SquatPhase, FormCue, FormRating } from '../lib/exercises/types'
 
@@ -29,6 +30,9 @@ interface DisplayState {
   kneeAngle: number | null
   formCues: FormCue[]
   lastRepRating: FormRating | null
+  formStatus: FormStatus
+  primaryFeedback: string
+  primaryFeedbackType: FeedbackType
 }
 
 const INITIAL_DISPLAY: DisplayState = {
@@ -37,6 +41,9 @@ const INITIAL_DISPLAY: DisplayState = {
   kneeAngle: null,
   formCues: [],
   lastRepRating: null,
+  formStatus: 'SEARCHING',
+  primaryFeedback: 'Get ready',
+  primaryFeedbackType: 'info',
 }
 
 function formatTimer(totalSeconds: number): string {
@@ -60,6 +67,7 @@ export default function WorkoutSessionPage() {
   const sessionStatusRef = useRef<SessionStatus>('idle')
   const goodRepsRef = useRef(0)
   const needsImprovementRepsRef = useRef(0)
+  const feedbackStabilizerRef = useRef(new FeedbackStabilizer())
 
   // Keep sessionStatusRef in sync with state
   useEffect(() => {
@@ -69,8 +77,10 @@ export default function WorkoutSessionPage() {
   // Reset analyzer on mount and cleanup on unmount
   useEffect(() => {
     resetSquatAnalyzer()
+    feedbackStabilizerRef.current.reset()
     return () => {
       resetSquatAnalyzer()
+      feedbackStabilizerRef.current.reset()
     }
   }, [])
 
@@ -87,7 +97,7 @@ export default function WorkoutSessionPage() {
 
   /**
    * Called every animation frame by CameraFeed with fresh landmarks.
-   * Runs the squat analyzer and updates display state only when needed.
+   * Runs the squat analyzer, prioritizes feedback, and updates display state.
    */
   const handleLandmarksDetected = useCallback(
     (landmarks: NormalizedLandmark[], timestampMs: number) => {
@@ -111,10 +121,22 @@ export default function WorkoutSessionPage() {
         }
       }
 
+      // Real-time prioritized and stabilized form feedback
+      const feedback = feedbackStabilizerRef.current.processFrame({
+        isTracking: true,
+        isFullyVisible: result.kneeAngle !== null,
+        phase: result.phase,
+        kneeAngle: result.kneeAngle,
+        deepestAngle: result.deepestAngle ?? (result.kneeAngle ?? 180),
+        landmarks,
+        lastRepRating: result.lastRepRating,
+        timestampMs,
+      })
+
       // Determine if the display needs updating:
       // - Always update on rep count change (critical)
       // - Always update on phase change (important)
-      // - Throttle knee angle + form cue updates to every 3rd frame (~20fps)
+      // - Throttle knee angle + form updates to every 3rd frame (~20fps)
       const repChanged = result.repCount !== prevRepCountRef.current
       const phaseChanged = result.phase !== prevPhaseRef.current
       const throttledFrame = frameCountRef.current % 3 === 0
@@ -129,6 +151,9 @@ export default function WorkoutSessionPage() {
           kneeAngle: result.kneeAngle,
           formCues: result.currentFormCues,
           lastRepRating: result.lastRepRating,
+          formStatus: feedback.status,
+          primaryFeedback: feedback.message,
+          primaryFeedbackType: feedback.type,
         })
       }
     },
@@ -137,11 +162,21 @@ export default function WorkoutSessionPage() {
 
   const handleTrackingChange = useCallback((tracking: boolean) => {
     setIsPoseTracking(tracking)
+    if (!tracking) {
+      feedbackStabilizerRef.current.reset()
+      setDisplay((prev) => ({
+        ...prev,
+        formStatus: 'SEARCHING',
+        primaryFeedback: 'Searching for pose...',
+        primaryFeedbackType: 'warning',
+      }))
+    }
   }, [])
 
   // Lifecycle control handlers
   const handleStartWorkout = useCallback(() => {
     resetSquatAnalyzer()
+    feedbackStabilizerRef.current.reset()
     prevRepCountRef.current = 0
     prevPhaseRef.current = 'STANDING'
     frameCountRef.current = 0
@@ -173,6 +208,7 @@ export default function WorkoutSessionPage() {
 
   const handleReset = useCallback(() => {
     resetSquatAnalyzer()
+    feedbackStabilizerRef.current.reset()
     prevRepCountRef.current = 0
     prevPhaseRef.current = 'STANDING'
     frameCountRef.current = 0
@@ -448,6 +484,9 @@ export default function WorkoutSessionPage() {
                 />
 
                 <FormFeedback
+                  formStatus={display.formStatus}
+                  primaryFeedback={display.primaryFeedback}
+                  feedbackType={display.primaryFeedbackType}
                   cues={display.formCues}
                   lastRepRating={display.lastRepRating}
                   isPaused={sessionStatus === 'paused'}
