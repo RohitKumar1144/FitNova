@@ -12,6 +12,7 @@ export interface ExerciseItem {
   reps: number
   rest_seconds: number
   instructions: string
+  reason?: string
 }
 
 export interface CooldownItem {
@@ -28,6 +29,7 @@ export interface WorkoutPlan {
   warmup: WarmupItem[]
   exercises: ExerciseItem[]
   cooldown: CooldownItem[]
+  coach_note?: string
 }
 
 export interface WorkoutPlanRecord {

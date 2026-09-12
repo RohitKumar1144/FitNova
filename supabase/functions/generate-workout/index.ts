@@ -63,7 +63,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
-    const geminiModel = Deno.env.get("GEMINI_MODEL") || "gemini-1.5-flash";
+    const geminiModel = Deno.env.get("GEMINI_MODEL") || "gemini-3.8-flash";
 
     if (!supabaseUrl || !supabaseAnonKey) {
       return new Response(
@@ -88,14 +88,17 @@ serve(async (req: Request) => {
       );
     }
 
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
+      console.error("Auth error:", userError?.message);
       return new Response(
-        JSON.stringify({ error: "Invalid or expired user session." }),
+        JSON.stringify({ error: "Invalid or expired user session. Please sign in again." }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -105,9 +108,10 @@ serve(async (req: Request) => {
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (profileError || !profile) {
+      console.error("Profile query error:", profileError?.message);
       return new Response(
         JSON.stringify({ error: "Fitness profile not found. Please complete your profile onboarding first." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -118,6 +122,24 @@ serve(async (req: Request) => {
     const equipmentStr = Array.isArray(userProfile.equipment)
       ? userProfile.equipment.join(", ")
       : String(userProfile.equipment || "No Equipment");
+
+    // 5. Fetch user's recent workout performance for mild progression
+    const { data: recentSessions } = await supabase
+      .from("workout_sessions")
+      .select("exercise_type, rep_count, good_form_reps, bad_form_reps, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    let performanceContext = "No prior workout sessions recorded.";
+    if (recentSessions && recentSessions.length > 0) {
+      performanceContext = recentSessions
+        .map(
+          (s: { exercise_type: string; rep_count: number; good_form_reps: number; bad_form_reps: number }) =>
+            `- ${s.exercise_type}: ${s.rep_count} total reps (${s.good_form_reps || 0} good form, ${s.bad_form_reps || 0} needs improvement)`
+        )
+        .join("\n");
+    }
 
     // 6. Construct carefully constrained prompt for Gemini
     const systemPrompt = `You are FitNova's certified AI fitness trainer, specialized in designing safe, science-backed workout plans for students and beginners.
@@ -134,22 +156,27 @@ CRITICAL CONSTRAINTS:
    - Available Time: ${userProfile.available_time_minutes || 30} minutes
    - Available Equipment: ${equipmentStr}
 
-2. TRACKED EXERCISES RESTRICTION:
+2. RECENT WORKOUT PERFORMANCE CONTEXT:
+${performanceContext}
+   Use this performance history for mild progression or appropriate adjustments. If the user demonstrated good form, you may slightly progress volume. If form needed improvement, prioritize clean form cues and manageable volume.
+
+3. TRACKED EXERCISES RESTRICTION:
    FitNova uses real-time computer vision to track form and reps. For the "exercises" array, you MUST use ONLY these exact "exercise_type" values:
    - "squat"
    - "pushup"
    - "bicep_curl"
-   DO NOT use any other string for "exercise_type". If the user does not have dumbbells or equipment for bicep_curl, focus on squats and pushups (or suitable bodyweight/household variations, e.g. backpack curls).
+   DO NOT use any other string for "exercise_type". If the user has no equipment for bicep_curl, focus on squats and pushups (or suitable bodyweight/household variations like backpack curls).
 
-3. The duration_minutes MUST be ${userProfile.available_time_minutes || 30}.
-4. Provide realistic sets (e.g. 2-4), reps (e.g. 8-15), and rest_seconds (e.g. 30-90).
-5. Output format must strictly match this JSON schema:
+4. The duration_minutes MUST be ${userProfile.available_time_minutes || 30}.
+5. Provide realistic sets (e.g. 2-4), reps (e.g. 8-15), and rest_seconds (e.g. 30-90).
+6. Output format must strictly match this JSON schema:
 {
   "title": "string",
   "description": "string",
   "duration_minutes": number,
   "difficulty": "beginner" | "intermediate" | "advanced",
   "goal": "string",
+  "coach_note": "string",
   "warmup": [
     { "name": "string", "duration_seconds": number }
   ],
@@ -160,7 +187,8 @@ CRITICAL CONSTRAINTS:
       "sets": number,
       "reps": number,
       "rest_seconds": number,
-      "instructions": "string"
+      "instructions": "string",
+      "reason": "string"
     }
   ],
   "cooldown": [
@@ -168,31 +196,74 @@ CRITICAL CONSTRAINTS:
   ]
 }`;
 
-    // Call Gemini API
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
+    // Call Gemini API with configurable model (default: gemini-3.8-flash)
+    const modelName = (Deno.env.get("GEMINI_MODEL") || "gemini-3.8-flash").trim();
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
 
-    const geminiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: systemPrompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
+    const requestBody = JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: systemPrompt }],
         },
-      }),
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+      },
     });
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error("Gemini API error:", errText);
+    const MAX_ATTEMPTS = 4;
+    const RETRY_DELAYS_MS = [0, 2000, 4000, 8000];
+    let geminiRes: Response | null = null;
+    let lastTransientStatus: number | null = null;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (attempt > 0) {
+        const delay = RETRY_DELAYS_MS[attempt] || 4000;
+        console.log(`Retrying Gemini request (attempt ${attempt + 1}/${MAX_ATTEMPTS}) after ${delay}ms delay...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+
+      try {
+        geminiRes = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: requestBody,
+        });
+
+        // Check if error is transient (429 Rate Limit or 503 Service Unavailable)
+        if (!geminiRes.ok && (geminiRes.status === 429 || geminiRes.status === 503)) {
+          lastTransientStatus = geminiRes.status;
+          console.warn(`Gemini returned transient status ${geminiRes.status} on attempt ${attempt + 1}`);
+          continue; // Retry next attempt
+        }
+
+        // For non-transient statuses (200 OK or 400/401/403/404/etc), stop retrying immediately
+        break;
+      } catch (networkErr) {
+        console.warn(`Network error during Gemini request on attempt ${attempt + 1}:`, networkErr);
+        if (attempt === MAX_ATTEMPTS - 1) {
+          throw networkErr;
+        }
+      }
+    }
+
+    if (!geminiRes || !geminiRes.ok) {
+      let errDetail = "AI service is temporarily busy. Please try again in a moment.";
+      if (geminiRes) {
+        try {
+          const errJson = await geminiRes.json();
+          // For permanent errors (non-429/503), surface message; for 429/503 keep user-friendly message
+          if (geminiRes.status !== 429 && geminiRes.status !== 503 && errJson?.error?.message) {
+            errDetail = `AI engine: ${errJson.error.message}`;
+          }
+        } catch {
+          // ignore
+        }
+      }
       return new Response(
-        JSON.stringify({ error: "AI service is currently busy. Please try again shortly." }),
+        JSON.stringify({ error: errDetail }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -208,7 +279,7 @@ CRITICAL CONSTRAINTS:
     }
 
     // Parse & Validate JSON
-    let parsedPlan: WorkoutPlan;
+    let parsedPlan: any;
     try {
       const cleanJson = rawText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
       parsedPlan = JSON.parse(cleanJson);
@@ -220,7 +291,18 @@ CRITICAL CONSTRAINTS:
       );
     }
 
-    // Validate fields & exercise_type safety
+    // Comprehensive validation
+    if (!parsedPlan || typeof parsedPlan !== "object") {
+      return new Response(
+        JSON.stringify({ error: "AI returned invalid response structure." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!parsedPlan.title || typeof parsedPlan.title !== "string") {
+      parsedPlan.title = "Personalized Full-Body Session";
+    }
+
     const allowedTypes = new Set(["squat", "pushup", "bicep_curl"]);
     if (!Array.isArray(parsedPlan.exercises) || parsedPlan.exercises.length === 0) {
       return new Response(
@@ -243,16 +325,28 @@ CRITICAL CONSTRAINTS:
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      // Ensure rest_seconds and instructions are present
+      ex.rest_seconds = typeof ex.rest_seconds === "number" ? ex.rest_seconds : 45;
+      ex.instructions = ex.instructions || ex.reason || "Maintain controlled cadence and full range of motion.";
+      ex.reason = ex.reason || ex.instructions;
     }
 
     // Ensure fallback fields
-    parsedPlan.duration_minutes = parsedPlan.duration_minutes || userProfile.available_time_minutes || 30;
-    parsedPlan.difficulty = parsedPlan.difficulty || userProfile.fitness_level || "beginner";
-    parsedPlan.goal = parsedPlan.goal || userProfile.goal || "improve_fitness";
+    parsedPlan.duration_minutes = typeof parsedPlan.duration_minutes === "number"
+      ? parsedPlan.duration_minutes
+      : userProfile.available_time_minutes || 30;
+    parsedPlan.difficulty = typeof parsedPlan.difficulty === "string"
+      ? parsedPlan.difficulty
+      : userProfile.fitness_level || "beginner";
+    parsedPlan.goal = typeof parsedPlan.goal === "string"
+      ? parsedPlan.goal
+      : userProfile.goal || "improve_fitness";
+    parsedPlan.description = parsedPlan.description || parsedPlan.coach_note || "AI calibrated routine for form accuracy.";
+    parsedPlan.coach_note = parsedPlan.coach_note || parsedPlan.description;
     parsedPlan.warmup = Array.isArray(parsedPlan.warmup) ? parsedPlan.warmup : [];
     parsedPlan.cooldown = Array.isArray(parsedPlan.cooldown) ? parsedPlan.cooldown : [];
 
-    // 4. Save into Supabase `workout_plans` table
+    // Save into Supabase `workout_plans` table
     const { data: savedPlan, error: saveError } = await supabase
       .from("workout_plans")
       .insert({

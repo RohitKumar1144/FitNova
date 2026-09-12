@@ -28,10 +28,24 @@ export async function generateWorkoutPlan(): Promise<GenerateWorkoutResponse> {
     })
 
     if (error) {
-      // In Supabase client, function invocation errors may wrap the response body
+      // In Supabase client, FunctionsHttpError wraps the Response object in error.context
       let message = 'Failed to generate workout plan. Please try again.'
       if (typeof error === 'object' && error !== null) {
-        if ('message' in error && typeof (error as { message: string }).message === 'string') {
+        if ('context' in error && error.context) {
+          try {
+            const body = await (error.context as Response).json()
+            if (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string') {
+              message = body.error
+            }
+          } catch {
+            try {
+              const text = await (error.context as Response).text()
+              if (text && text.length < 200) message = text
+            } catch {
+              // ignore
+            }
+          }
+        } else if ('message' in error && typeof (error as { message: string }).message === 'string') {
           message = (error as { message: string }).message
         }
       }
