@@ -79,7 +79,7 @@ export interface SquatThresholds {
 export type PushupPhase = 'TOP' | 'DESCENDING' | 'BOTTOM' | 'ASCENDING'
 
 /** Supported exercises in FitNova */
-export type ExerciseType = 'squat' | 'pushup'
+export type ExerciseType = 'squat' | 'pushup' | 'bicep_curl'
 
 /** All tuneable thresholds for push-up detection. */
 export interface PushupThresholds {
@@ -117,4 +117,52 @@ export interface PushupFrameAnalysis {
   deepestAngle?: number
   bodyAngle?: number | null
   isPlank?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Bicep Curl Types
+// ---------------------------------------------------------------------------
+
+/** Bicep curl state machine phases — one complete cycle = one rep. */
+export type BicepCurlPhase = 'EXTENDED' | 'CURLING_UP' | 'CONTRACTED' | 'LOWERING'
+
+/** All tuneable thresholds for bicep curl detection. */
+export interface BicepCurlThresholds {
+  /** Elbow angle above which arm is considered extended (degrees). */
+  extendedAngle: number
+  /** Elbow angle below which a curl is recognized as starting (degrees). */
+  curlStartAngle: number
+  /** Elbow angle at or below which the contracted top position is reached (degrees). */
+  contractedAngle: number
+  /** Elbow angle qualifying as good contraction for form scoring (degrees). */
+  goodContractionAngle: number
+  /** Hysteresis margin added to contractedAngle for CONTRACTED → LOWERING transition (degrees). */
+  topHysteresis: number
+  /** Minimum landmark visibility score required (0–1). */
+  minVisibility: number
+  /** Minimum elapsed time for a valid rep to prevent ghost reps (milliseconds). */
+  minRepDurationMs: number
+  /** EMA smoothing factor for elbow angle (0–1). */
+  smoothingAlpha: number
+  /** Maximum angle upper arm can drift forward/away from torso before warning (degrees). */
+  maxElbowDriftAngle: number
+  /** Maximum angle upper arm can drift/raise away from torso during a rep before rep is aborted (degrees). */
+  maxUpperArmDriftAngle: number
+  /** Maximum ratio of elbow displacement from starting position relative to torso length before rep is aborted. */
+  maxElbowDisplacementRatio: number
+  /** Maximum drift angle allowed when establishing a valid starting position (degrees). */
+  startingMaxDriftAngle: number
+  /** Number of consecutive stable frames required in starting position before a curl can begin. */
+  minStartingStableFrames: number
+}
+
+/** Result returned by the bicep curl analyzer for every processed frame. */
+export interface BicepCurlFrameAnalysis {
+  phase: BicepCurlPhase
+  elbowAngle: number | null
+  repCount: number
+  currentFormCues: FormCue[]
+  lastRepRating: FormRating | null
+  contractedAngle?: number
+  activeArm: 'left' | 'right' | 'both'
 }

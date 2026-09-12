@@ -1,9 +1,9 @@
-import type { SquatPhase, PushupPhase } from '../../lib/exercises/types'
+import type { SquatPhase, PushupPhase, BicepCurlPhase } from '../../lib/exercises/types'
 import { Dumbbell } from 'lucide-react'
 
 interface RepCounterProps {
   repCount: number
-  phase: SquatPhase | PushupPhase
+  phase: SquatPhase | PushupPhase | BicepCurlPhase
   kneeAngle?: number | null
   elbowAngle?: number | null
   angleLabel?: string
@@ -20,6 +20,10 @@ const PHASE_CONFIG: Record<string, { label: string; color: string; bg: string }>
   DESCENDING: { label: 'Going Down', color: 'text-amber-400', bg: 'bg-amber-500/20' },
   BOTTOM: { label: 'Bottom', color: 'text-sky-400', bg: 'bg-sky-500/20' },
   ASCENDING: { label: 'Coming Up', color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
+  EXTENDED: { label: 'Extended', color: 'text-slate-400', bg: 'bg-slate-500/20' },
+  CURLING_UP: { label: 'Curling Up', color: 'text-amber-400', bg: 'bg-amber-500/20' },
+  CONTRACTED: { label: 'Contracted', color: 'text-sky-400', bg: 'bg-sky-500/20' },
+  LOWERING: { label: 'Lowering', color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
 }
 
 /**
@@ -97,7 +101,7 @@ export default function RepCounter({
             <span className="relative flex h-2 w-2">
               <span
                 className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  phase === 'STANDING' || phase === 'TOP' || isPaused ? '' : 'animate-ping'
+                  phase === 'STANDING' || phase === 'TOP' || phase === 'EXTENDED' || isPaused ? '' : 'animate-ping'
                 } ${phaseInfo.color.replace('text-', 'bg-')}`}
               />
               <span

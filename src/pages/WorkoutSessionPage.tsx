@@ -18,16 +18,17 @@ import FormFeedback from '../components/tracker/FormFeedback'
 import WorkoutSummary from '../components/tracker/WorkoutSummary'
 import { analyzeSquatFrame, resetSquatAnalyzer } from '../lib/exercises/squat'
 import { analyzePushupFrame, resetPushupAnalyzer } from '../lib/exercises/pushup'
+import { analyzeBicepCurlFrame, resetBicepCurlAnalyzer } from '../lib/exercises/bicepCurl'
 import { FeedbackStabilizer, type FormStatus, type FeedbackType } from '../lib/exercises/feedback'
 import type { NormalizedLandmark } from '../lib/mediapipe/poseDetector'
-import type { SquatPhase, PushupPhase, FormCue, FormRating, ExerciseType } from '../lib/exercises/types'
+import type { SquatPhase, PushupPhase, BicepCurlPhase, FormCue, FormRating, ExerciseType } from '../lib/exercises/types'
 
 export type SessionStatus = 'idle' | 'active' | 'paused' | 'ended'
 
 /** UI state that drives re-renders — updated only on meaningful changes. */
 interface DisplayState {
   repCount: number
-  phase: SquatPhase | PushupPhase
+  phase: SquatPhase | PushupPhase | BicepCurlPhase
   kneeAngle: number | null
   elbowAngle?: number | null
   formCues: FormCue[]
@@ -66,7 +67,7 @@ export default function WorkoutSessionPage() {
 
   // Refs for tracking mutable lifecycle without causing extra renders
   const prevRepCountRef = useRef(0)
-  const prevPhaseRef = useRef<SquatPhase | PushupPhase>('STANDING')
+  const prevPhaseRef = useRef<SquatPhase | PushupPhase | BicepCurlPhase>('STANDING')
   const frameCountRef = useRef(0)
   const sessionStatusRef = useRef<SessionStatus>('idle')
   const exerciseTypeRef = useRef<ExerciseType>('squat')
@@ -87,10 +88,12 @@ export default function WorkoutSessionPage() {
   useEffect(() => {
     resetSquatAnalyzer()
     resetPushupAnalyzer()
+    resetBicepCurlAnalyzer()
     feedbackStabilizerRef.current.reset()
     return () => {
       resetSquatAnalyzer()
       resetPushupAnalyzer()
+      resetBicepCurlAnalyzer()
       feedbackStabilizerRef.current.reset()
     }
   }, [])
@@ -119,7 +122,55 @@ export default function WorkoutSessionPage() {
 
       frameCountRef.current += 1
 
-      if (exerciseTypeRef.current === 'pushup') {
+      if (exerciseTypeRef.current === 'bicep_curl') {
+        const result = analyzeBicepCurlFrame(landmarks, timestampMs)
+
+        // Track newly completed rep ratings
+        if (result.repCount > prevRepCountRef.current) {
+          const rating = result.lastRepRating
+          if (rating === 'good') {
+            goodRepsRef.current += 1
+            setGoodReps(goodRepsRef.current)
+          } else {
+            needsImprovementRepsRef.current += 1
+            setNeedsImprovementReps(needsImprovementRepsRef.current)
+          }
+        }
+
+        // Real-time prioritized and stabilized bicep curl form feedback
+        const feedback = feedbackStabilizerRef.current.processBicepCurlFrame({
+          isTracking: true,
+          isFullyVisible: result.elbowAngle !== null,
+          phase: result.phase,
+          elbowAngle: result.elbowAngle,
+          contractedAngle: result.contractedAngle ?? (result.elbowAngle ?? 180),
+          landmarks,
+          lastRepRating: result.lastRepRating,
+          timestampMs,
+          activeArm: result.activeArm,
+        })
+
+        const repChanged = result.repCount !== prevRepCountRef.current
+        const phaseChanged = result.phase !== prevPhaseRef.current
+        const throttledFrame = frameCountRef.current % 3 === 0
+
+        if (repChanged || phaseChanged || throttledFrame) {
+          prevRepCountRef.current = result.repCount
+          prevPhaseRef.current = result.phase
+
+          setDisplay({
+            repCount: result.repCount,
+            phase: result.phase,
+            kneeAngle: null,
+            elbowAngle: result.elbowAngle,
+            formCues: result.currentFormCues,
+            lastRepRating: result.lastRepRating,
+            formStatus: feedback.status,
+            primaryFeedback: feedback.message,
+            primaryFeedbackType: feedback.type,
+          })
+        }
+      } else if (exerciseTypeRef.current === 'pushup') {
         const result = analyzePushupFrame(landmarks, timestampMs)
 
         // Track newly completed rep ratings
@@ -238,7 +289,9 @@ export default function WorkoutSessionPage() {
   }, [])
 
   const resetCurrentAnalyzer = useCallback(() => {
-    if (exerciseTypeRef.current === 'pushup') {
+    if (exerciseTypeRef.current === 'bicep_curl') {
+      resetBicepCurlAnalyzer()
+    } else if (exerciseTypeRef.current === 'pushup') {
       resetPushupAnalyzer()
     } else {
       resetSquatAnalyzer()
@@ -249,8 +302,12 @@ export default function WorkoutSessionPage() {
   // Lifecycle control handlers
   const handleStartWorkout = useCallback(() => {
     resetCurrentAnalyzer()
-    const initialPhase: SquatPhase | PushupPhase =
-      exerciseTypeRef.current === 'pushup' ? 'TOP' : 'STANDING'
+    const initialPhase: SquatPhase | PushupPhase | BicepCurlPhase =
+      exerciseTypeRef.current === 'bicep_curl'
+        ? 'EXTENDED'
+        : exerciseTypeRef.current === 'pushup'
+        ? 'TOP'
+        : 'STANDING'
     prevRepCountRef.current = 0
     prevPhaseRef.current = initialPhase
     frameCountRef.current = 0
@@ -285,8 +342,12 @@ export default function WorkoutSessionPage() {
 
   const handleReset = useCallback(() => {
     resetCurrentAnalyzer()
-    const initialPhase: SquatPhase | PushupPhase =
-      exerciseTypeRef.current === 'pushup' ? 'TOP' : 'STANDING'
+    const initialPhase: SquatPhase | PushupPhase | BicepCurlPhase =
+      exerciseTypeRef.current === 'bicep_curl'
+        ? 'EXTENDED'
+        : exerciseTypeRef.current === 'pushup'
+        ? 'TOP'
+        : 'STANDING'
     prevRepCountRef.current = 0
     prevPhaseRef.current = initialPhase
     frameCountRef.current = 0
@@ -309,9 +370,11 @@ export default function WorkoutSessionPage() {
       setExerciseType(type)
       exerciseTypeRef.current = type
       resetCurrentAnalyzer()
+      const initialPhase: SquatPhase | PushupPhase | BicepCurlPhase =
+        type === 'bicep_curl' ? 'EXTENDED' : type === 'pushup' ? 'TOP' : 'STANDING'
       setDisplay({
         ...INITIAL_DISPLAY,
-        phase: type === 'pushup' ? 'TOP' : 'STANDING',
+        phase: initialPhase,
       })
     },
     [sessionStatus, resetCurrentAnalyzer],
@@ -403,7 +466,13 @@ export default function WorkoutSessionPage() {
             needsImprovementReps={needsImprovementReps}
             durationSeconds={elapsedSeconds}
             onStartNewWorkout={handleStartNewWorkout}
-            exerciseName={exerciseType === 'pushup' ? 'Push-ups' : 'Squats'}
+            exerciseName={
+              exerciseType === 'bicep_curl'
+                ? 'Bicep Curls'
+                : exerciseType === 'pushup'
+                ? 'Push-ups'
+                : 'Squats'
+            }
           />
         ) : (
           /* VIEW 2: Active / Idle / Paused Session */
@@ -416,7 +485,11 @@ export default function WorkoutSessionPage() {
                     Exercise
                   </span>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                    {exerciseType === 'pushup' ? 'PUSH-UPS' : 'SQUATS'}
+                    {exerciseType === 'bicep_curl'
+                      ? 'BICEP CURLS'
+                      : exerciseType === 'pushup'
+                      ? 'PUSH-UPS'
+                      : 'SQUATS'}
                   </h1>
 
                   {/* Exercise selector toggle (visible in idle state) */}
@@ -444,11 +517,24 @@ export default function WorkoutSessionPage() {
                       >
                         Push-ups
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExercise('bicep_curl')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          exerciseType === 'bicep_curl'
+                            ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Bicep Curls
+                      </button>
                     </div>
                   )}
                 </div>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  {exerciseType === 'pushup'
+                  {exerciseType === 'bicep_curl'
+                    ? 'Perform bicep curls with controlled cadence and full range of motion. Live AI tracks reps and form.'
+                    : exerciseType === 'pushup'
                     ? 'Perform push-ups with straight posture and full range of motion. Live AI tracks reps and form.'
                     : 'Perform bodyweight squats with full range of motion. Live AI tracks reps and posture.'}
                 </p>
@@ -524,11 +610,17 @@ export default function WorkoutSessionPage() {
                     </div>
 
                     <h3 className="text-xl sm:text-2xl font-black text-white mb-2">
-                      {exerciseType === 'pushup' ? 'Ready for Push-ups?' : 'Ready to Squat?'}
+                      {exerciseType === 'bicep_curl'
+                        ? 'Ready to Curl?'
+                        : exerciseType === 'pushup'
+                        ? 'Ready for Push-ups?'
+                        : 'Ready to Squat?'}
                     </h3>
 
                     <p className="text-xs sm:text-sm text-slate-400 max-w-md mb-6 leading-relaxed">
-                      {exerciseType === 'pushup'
+                      {exerciseType === 'bicep_curl'
+                        ? 'Stand or sit upright 4–7 feet away so your arms and torso are clearly visible. Press Start Workout when you are ready.'
+                        : exerciseType === 'pushup'
                         ? 'Position your device 5–7 feet away at floor or low level so your full side profile is visible. Press Start Workout when you are ready.'
                         : 'Position your device 6–8 feet away at waist height so your full body is visible. Press Start Workout when you are ready.'}
                     </p>
@@ -604,9 +696,15 @@ export default function WorkoutSessionPage() {
                   repCount={display.repCount}
                   phase={display.phase}
                   kneeAngle={exerciseType === 'squat' ? display.kneeAngle : null}
-                  elbowAngle={exerciseType === 'pushup' ? display.elbowAngle : null}
-                  angleLabel={exerciseType === 'pushup' ? 'Elbow Angle' : 'Knee Angle'}
-                  exerciseName={exerciseType === 'pushup' ? 'PUSH-UPS' : 'SQUATS'}
+                  elbowAngle={exerciseType !== 'squat' ? display.elbowAngle : null}
+                  angleLabel={exerciseType === 'squat' ? 'Knee Angle' : 'Elbow Angle'}
+                  exerciseName={
+                    exerciseType === 'bicep_curl'
+                      ? 'BICEP CURLS'
+                      : exerciseType === 'pushup'
+                      ? 'PUSH-UPS'
+                      : 'SQUATS'
+                  }
                   isTracking={isPoseTracking}
                   isPaused={sessionStatus === 'paused'}
                   className="flex-1 lg:flex-none"

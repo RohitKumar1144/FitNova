@@ -1,7 +1,9 @@
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision'
-import type { SquatPhase, PushupPhase, FormRating } from './types'
+import type { SquatPhase, PushupPhase, BicepCurlPhase, FormRating } from './types'
 import { computeTorsoLeanAngle, isKneeAlignmentGood } from './squat'
 import { computePushupBodyAlignment } from './pushup'
+import { computeElbowDriftAngle } from './bicepCurl'
+import { POSE_LANDMARKS } from '../mediapipe/landmarks'
 
 export type FormStatus = 'GOOD' | 'NEEDS_IMPROVEMENT' | 'SEARCHING'
 export type FeedbackType = 'success' | 'warning' | 'info'
@@ -285,6 +287,154 @@ export function evaluatePushupRawFeedback(input: PushupFeedbackInput): Prioritiz
   }
 }
 
+export interface BicepCurlFeedbackInput {
+  isTracking: boolean
+  isFullyVisible: boolean
+  phase: BicepCurlPhase
+  elbowAngle: number | null
+  contractedAngle: number
+  landmarks: NormalizedLandmark[] | null
+  lastRepRating: FormRating | null
+  timestampMs: number
+  activeArm?: 'left' | 'right' | 'both'
+}
+
+/**
+ * Evaluates raw feedback for bicep curls based on priority hierarchy:
+ * 1. Tracking / visibility
+ * 2. Range of motion (curl high enough)
+ * 3. Arm extension (extend arm fully)
+ * 4. Elbow position (keep elbow close to side)
+ * 5. Phase guidance & positive encouragement
+ */
+export function evaluateBicepCurlRawFeedback(input: BicepCurlFeedbackInput): PrioritizedFeedback {
+  const {
+    isTracking,
+    isFullyVisible,
+    phase,
+    elbowAngle,
+    contractedAngle,
+    landmarks,
+    lastRepRating,
+    activeArm = 'both',
+  } = input
+
+  // Priority 1: Tracking / Visibility Problem
+  if (!isTracking) {
+    return {
+      status: 'SEARCHING',
+      message: 'Searching for pose...',
+      type: 'warning',
+    }
+  }
+
+  if (!isFullyVisible || !landmarks) {
+    return {
+      status: 'SEARCHING',
+      message: 'Move into full view',
+      type: 'warning',
+    }
+  }
+
+  // Priority 2: Range of Motion (Contraction)
+  if (phase === 'CONTRACTED' || phase === 'LOWERING') {
+    if (contractedAngle > 75) {
+      return {
+        status: 'NEEDS_IMPROVEMENT',
+        message: 'Full curl — curl higher',
+        type: 'warning',
+      }
+    }
+    if (phase === 'CONTRACTED' && contractedAngle <= 55) {
+      return {
+        status: 'GOOD',
+        message: 'Great squeeze!',
+        type: 'success',
+      }
+    }
+  }
+
+  // Priority 3: Arm Extension
+  if (phase === 'LOWERING' && elbowAngle !== null && elbowAngle < 125) {
+    return {
+      status: 'NEEDS_IMPROVEMENT',
+      message: 'Extend your arm fully',
+      type: 'warning',
+    }
+  }
+
+  // Priority 4: Elbow Position / Flaring
+  if (landmarks && (phase === 'CURLING_UP' || phase === 'CONTRACTED')) {
+    const isLeft = activeArm === 'left' || activeArm === 'both'
+    const isRight = activeArm === 'right' || activeArm === 'both'
+    let excessiveDrift = false
+
+    if (isLeft) {
+      const leftDrift = computeElbowDriftAngle(
+        landmarks[POSE_LANDMARKS.LEFT_SHOULDER],
+        landmarks[POSE_LANDMARKS.LEFT_ELBOW],
+        landmarks[POSE_LANDMARKS.LEFT_HIP],
+      )
+      if (leftDrift > 30) excessiveDrift = true
+    }
+    if (!excessiveDrift && isRight) {
+      const rightDrift = computeElbowDriftAngle(
+        landmarks[POSE_LANDMARKS.RIGHT_SHOULDER],
+        landmarks[POSE_LANDMARKS.RIGHT_ELBOW],
+        landmarks[POSE_LANDMARKS.RIGHT_HIP],
+      )
+      if (rightDrift > 30) excessiveDrift = true
+    }
+
+    if (excessiveDrift) {
+      return {
+        status: 'NEEDS_IMPROVEMENT',
+        message: 'Keep your elbow close to your side',
+        type: 'warning',
+      }
+    }
+  }
+
+  // Priority 5: Phase Guidance & Encouragement
+  switch (phase) {
+    case 'CURLING_UP':
+      return {
+        status: 'GOOD',
+        message: 'Curl up',
+        type: 'info',
+      }
+
+    case 'CONTRACTED':
+      return {
+        status: 'GOOD',
+        message: 'Squeeze bicep',
+        type: 'success',
+      }
+
+    case 'LOWERING':
+      return {
+        status: 'GOOD',
+        message: 'Lower with control',
+        type: 'info',
+      }
+
+    case 'EXTENDED':
+    default:
+      if (lastRepRating === 'good') {
+        return {
+          status: 'GOOD',
+          message: 'Good form',
+          type: 'success',
+        }
+      }
+      return {
+        status: 'GOOD',
+        message: 'Ready to curl',
+        type: 'info',
+      }
+  }
+}
+
 /**
  * Stabilizes real-time feedback messages to prevent rapid frame-by-frame flickering.
  *
@@ -328,6 +478,14 @@ export class FeedbackStabilizer {
    */
   processPushupFrame(input: PushupFeedbackInput): PrioritizedFeedback {
     const raw = evaluatePushupRawFeedback(input)
+    return this.processRaw(raw, input.timestampMs)
+  }
+
+  /**
+   * Process an incoming bicep curl frame and return the temporally stabilized feedback.
+   */
+  processBicepCurlFrame(input: BicepCurlFeedbackInput): PrioritizedFeedback {
+    const raw = evaluateBicepCurlRawFeedback(input)
     return this.processRaw(raw, input.timestampMs)
   }
 
