@@ -1,0 +1,38 @@
+export type TrackedExerciseType = 'squat' | 'pushup' | 'bicep_curl'
+
+export interface WarmupItem {
+  name: string
+  duration_seconds: number
+}
+
+export interface ExerciseItem {
+  name: string
+  exercise_type: TrackedExerciseType
+  sets: number
+  reps: number
+  rest_seconds: number
+  instructions: string
+}
+
+export interface CooldownItem {
+  name: string
+  duration_seconds: number
+}
+
+export interface WorkoutPlan {
+  title: string
+  description: string
+  duration_minutes: number
+  difficulty: string
+  goal: string
+  warmup: WarmupItem[]
+  exercises: ExerciseItem[]
+  cooldown: CooldownItem[]
+}
+
+export interface WorkoutPlanRecord {
+  id: string
+  user_id: string
+  plan_json: WorkoutPlan
+  created_at?: string
+}

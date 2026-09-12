@@ -1,74 +1,170 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { Activity, Sparkles, UserCheck } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Activity, LogOut, CheckCircle2 } from 'lucide-react'
 import { signOut, useAuth } from '../lib/supabase/auth'
+import { upsertProfile, getProfile } from '../lib/supabase/queries'
+import OnboardingForm from '../components/onboarding/OnboardingForm'
+import type { OnboardingFormData } from '../types/profile'
 
 export default function OnboardingPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+
+  const [initialName, setInitialName] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isSuccess, setIsSuccess] = useState(false)
+
+  // Auth protection: redirect if unauthenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth', { replace: true })
+    }
+  }, [user, authLoading, navigate])
+
+  // Check if profile already exists or pre-fill name
+  useEffect(() => {
+    async function checkExistingProfile() {
+      if (!user) return
+      try {
+        const { data } = await getProfile(user.id)
+        if (data?.full_name) {
+          setInitialName(data.full_name)
+        }
+      } catch (err) {
+        console.error('Error fetching existing profile:', err)
+      }
+    }
+
+    if (user) {
+      checkExistingProfile()
+    }
+  }, [user])
 
   const handleSignOut = async () => {
     await signOut()
     navigate('/auth')
   }
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-emerald-500/10 blur-[130px] rounded-full pointer-events-none" />
+  const handleSubmit = async (formData: OnboardingFormData) => {
+    if (!user) {
+      setError('You must be logged in to save your profile.')
+      return
+    }
 
-      <div className="relative max-w-lg w-full bg-slate-900/70 border border-slate-800 backdrop-blur-xl rounded-2xl p-8 shadow-2xl text-center">
-        {/* Brand */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Activity className="w-5 h-5 text-slate-950 stroke-[2.5]" />
-          </div>
-          <span className="text-xl font-extrabold text-white">
-            Fit<span className="text-emerald-400">Saathi</span>
-          </span>
-        </div>
+    setSubmitting(true)
+    setError(null)
 
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-4">
-          <UserCheck className="w-3.5 h-3.5" />
-          <span>Authenticated Successfully</span>
-        </div>
+    try {
+      // Upsert profile into Supabase
+      const { error: upsertError } = await upsertProfile({
+        id: user.id,
+        full_name: formData.fullName.trim(),
+        age: Number(formData.age),
+        height_cm: Number(formData.heightCm),
+        weight_kg: Number(formData.weightKg),
+        fitness_level: formData.fitnessLevel,
+        goal: formData.goal,
+        available_time_minutes: Number(formData.availableTimeMinutes),
+        equipment: formData.equipment,
+      })
 
-        <h1 className="text-3xl font-extrabold text-white tracking-tight mb-2">
-          Welcome to FitSaathi!
-        </h1>
+      if (upsertError) {
+        console.error('Profile upsert error:', upsertError)
+        setError('Failed to save profile. Please check your network and try again.')
+        return
+      }
 
-        <p className="text-sm text-slate-400 mb-6">
-          {user?.email ? (
-            <span>Logged in as <strong className="text-slate-200">{user.email}</strong></span>
-          ) : (
-            'Your account is ready. Let us set up your personalized profile.'
-          )}
-        </p>
+      setIsSuccess(true)
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true })
+      }, 1200)
+    } catch (err: unknown) {
+      console.error('Unexpected onboarding error:', err)
+      const errMsg = err instanceof Error ? err.message : 'An unexpected error occurred.'
+      setError(errMsg)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
-        <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 mb-6 text-left space-y-2 text-xs text-slate-300">
-          <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-            <Sparkles className="w-4 h-4" /> Next Step: Onboarding Flow
-          </div>
-          <p className="text-slate-400">
-            In the upcoming step, you will input your fitness level, goals, available workout equipment, and daily schedule.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
-          <Link
-            to="/"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold transition"
-          >
-            Back to Home
-          </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-900/50 text-sm font-medium transition cursor-pointer"
-          >
-            Sign Out
-          </button>
-        </div>
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
       </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950 flex flex-col justify-between relative overflow-x-hidden">
+      {/* Background ambient lighting */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-emerald-500/10 blur-[130px] rounded-full" />
+        <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-cyan-500/10 blur-[150px] rounded-full" />
+      </div>
+
+      {/* Top Header */}
+      <header className="border-b border-slate-800/80 bg-slate-950/75 backdrop-blur-xl sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-500/20">
+              <Activity className="w-5 h-5 text-slate-950 stroke-[2.5]" />
+            </div>
+            <span className="text-xl font-extrabold text-white">
+              Fit<span className="text-emerald-400">Saathi</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-slate-400 hidden sm:inline-block">
+              {user.email}
+            </span>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/30 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-900/50 text-xs font-semibold transition cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-10 sm:py-16">
+        {isSuccess ? (
+          <div className="max-w-md w-full bg-slate-900/80 border border-emerald-500/40 backdrop-blur-xl rounded-3xl p-8 text-center shadow-2xl shadow-emerald-950/30">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            </div>
+            <h2 className="text-2xl font-extrabold text-white mb-2">Profile Created!</h2>
+            <p className="text-sm text-slate-400 mb-6">
+              Your personalized fitness journey is ready. Redirecting to your dashboard...
+            </p>
+            <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-400 animate-pulse w-full" />
+            </div>
+          </div>
+        ) : (
+          <OnboardingForm
+            initialFullName={initialName}
+            onSubmit={handleSubmit}
+            loading={submitting}
+            error={error}
+          />
+        )}
+      </main>
+
+      {/* Subtle footer info */}
+      <footer className="py-6 text-center text-xs text-slate-400 border-t border-slate-900">
+        FitSaathi AI Coaching • Smart India Hackathon
+      </footer>
     </div>
   )
 }
