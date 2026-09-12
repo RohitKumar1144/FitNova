@@ -1,6 +1,11 @@
 import { supabase } from './client'
 import type { Profile } from '../../types/profile'
 import type { WorkoutPlanRecord } from '../../types/workout'
+import {
+  calculateCurrentStreak,
+  getThisWeekActivity,
+  getDeterministicProgressSummary,
+} from '../progress/activityScore'
 
 export async function getProfile(userId: string) {
   const { data, error } = await supabase
@@ -83,6 +88,14 @@ export async function getDashboardStats(userId: string): Promise<{ data: Dashboa
       const totalTracked = totalGood + totalBad
       if (totalTracked > 0) {
         avgFormScore = Math.round((totalGood / totalTracked) * 100)
+      }
+
+      // Calculate streak deterministically from session timestamps
+      const sessionTimestamps = sessions
+        .map((s) => s.created_at)
+        .filter((ts): ts is string => Boolean(ts))
+      if (sessionTimestamps.length > 0) {
+        currentStreak = calculateCurrentStreak(sessionTimestamps)
       }
     }
 
@@ -404,13 +417,7 @@ export async function getDetailedProgressDashboardData(userId: string): Promise<
       }
     }
 
-    // Dynamic import of progress calculations
-    const {
-      calculateCurrentStreak,
-      getThisWeekActivity,
-      getDeterministicProgressSummary,
-    } = await import('../progress/activityScore')
-
+    // Progress calculations using statically imported functions
     const totalWorkouts = sessions.length
     const totalReps = sessions.reduce((acc, s) => acc + (s.rep_count || 0), 0)
 

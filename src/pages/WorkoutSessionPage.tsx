@@ -23,6 +23,8 @@ import { FeedbackStabilizer, type FormStatus, type FeedbackType } from '../lib/e
 import type { NormalizedLandmark } from '../lib/mediapipe/poseDetector'
 import type { SquatPhase, PushupPhase, BicepCurlPhase, FormCue, FormRating, ExerciseType } from '../lib/exercises/types'
 import { generateWorkoutFeedback } from '../lib/ai/generateFeedback'
+import { saveWorkoutSession } from '../lib/supabase/queries'
+import { supabase } from '../lib/supabase/client'
 import type { AIPostWorkoutFeedback } from '../types/feedback'
 
 export type SessionStatus = 'idle' | 'active' | 'paused' | 'ended'
@@ -69,6 +71,8 @@ export default function WorkoutSessionPage() {
   const [aiFeedback, setAiFeedback] = useState<AIPostWorkoutFeedback | null>(null)
   const [aiFeedbackLoading, setAiFeedbackLoading] = useState(false)
   const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Refs for tracking mutable lifecycle without causing extra renders
   const prevRepCountRef = useRef(0)
@@ -79,6 +83,8 @@ export default function WorkoutSessionPage() {
   const goodRepsRef = useRef(0)
   const needsImprovementRepsRef = useRef(0)
   const feedbackStabilizerRef = useRef(new FeedbackStabilizer())
+  const hasSavedRef = useRef(false)
+  const isSavingRef = useRef(false)
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -324,6 +330,10 @@ export default function WorkoutSessionPage() {
     setAiFeedback(null)
     setAiFeedbackLoading(false)
     setAiFeedbackError(null)
+    setIsSaving(false)
+    setSaveError(null)
+    hasSavedRef.current = false
+    isSavingRef.current = false
     setDisplay({
       ...INITIAL_DISPLAY,
       phase: initialPhase,
@@ -339,30 +349,70 @@ export default function WorkoutSessionPage() {
     setSessionStatus('active')
   }, [])
 
-  const handleEndWorkout = useCallback(async () => {
-    setSessionStatus('ended')
-    setIsPoseTracking(false)
+  // Core persistence function: Saves session to Supabase workout_sessions table
+  const persistWorkoutSession = useCallback(async (
+    exercise: ExerciseType,
+    totalReps: number,
+    good: number,
+    bad: number,
+    duration: number,
+    accuracy: number
+  ) => {
+    if (hasSavedRef.current || isSavingRef.current) {
+      return
+    }
 
-    // Capture final metrics
-    const finalTotalReps = prevRepCountRef.current
-    const finalGoodReps = goodRepsRef.current
-    const finalNeedsImprovementReps = needsImprovementRepsRef.current
-    const finalDuration = elapsedSeconds
-    const finalAccuracy = finalTotalReps > 0 ? Math.round((finalGoodReps / finalTotalReps) * 100) : 0
-    const currentExercise = exerciseTypeRef.current
+    isSavingRef.current = true
+    setIsSaving(true)
+    setSaveError(null)
 
-    // Request AI Coach Feedback
+    let savedSessionId: string | null = null
+
+    try {
+      // 1. Get authenticated user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        throw new Error('Authentication required to save workout. Please sign in.')
+      }
+
+      // 2. Persist record into workout_sessions table immediately
+      const { data: savedRecord, error: saveErr } = await saveWorkoutSession({
+        user_id: user.id,
+        exercise_type: exercise,
+        rep_count: totalReps,
+        good_form_reps: good,
+        bad_form_reps: bad,
+        duration_seconds: duration,
+      })
+
+      if (saveErr) {
+        throw new Error(saveErr.message || 'Failed to save workout session to database.')
+      }
+
+      hasSavedRef.current = true
+      savedSessionId = savedRecord?.id || null
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save workout session.'
+      console.error('Error saving workout session:', err)
+      setSaveError(msg)
+    } finally {
+      isSavingRef.current = false
+      setIsSaving(false)
+    }
+
+    // 3. Request AI Coach Feedback (independent of persistence)
     setAiFeedbackLoading(true)
     setAiFeedbackError(null)
 
     try {
       const res = await generateWorkoutFeedback({
-        exercise_type: currentExercise,
-        rep_count: finalTotalReps,
-        good_form_reps: finalGoodReps,
-        bad_form_reps: finalNeedsImprovementReps,
-        duration_seconds: finalDuration,
-        form_accuracy: finalAccuracy,
+        session_id: savedSessionId || undefined,
+        exercise_type: exercise,
+        rep_count: totalReps,
+        good_form_reps: good,
+        bad_form_reps: bad,
+        duration_seconds: duration,
+        form_accuracy: accuracy,
       })
 
       if (res.feedback) {
@@ -376,7 +426,55 @@ export default function WorkoutSessionPage() {
     } finally {
       setAiFeedbackLoading(false)
     }
-  }, [elapsedSeconds])
+  }, [])
+
+  const handleEndWorkout = useCallback(() => {
+    // Prevent multiple executions of End Workout
+    if (sessionStatusRef.current === 'ended') {
+      return
+    }
+
+    setSessionStatus('ended')
+    setIsPoseTracking(false)
+
+    // Capture final metrics deterministically
+    const finalTotalReps = prevRepCountRef.current
+    const finalGoodReps = goodRepsRef.current
+    const finalNeedsImprovementReps = needsImprovementRepsRef.current
+    const finalDuration = elapsedSeconds
+    const finalAccuracy = finalTotalReps > 0 ? Math.round((finalGoodReps / finalTotalReps) * 100) : 0
+    const currentExercise = exerciseTypeRef.current
+
+    // Trigger hardened persistence
+    persistWorkoutSession(
+      currentExercise,
+      finalTotalReps,
+      finalGoodReps,
+      finalNeedsImprovementReps,
+      finalDuration,
+      finalAccuracy
+    )
+  }, [elapsedSeconds, persistWorkoutSession])
+
+  const handleRetrySave = useCallback(() => {
+    const finalTotalReps = prevRepCountRef.current
+    const finalGoodReps = goodRepsRef.current
+    const finalNeedsImprovementReps = needsImprovementRepsRef.current
+    const finalDuration = elapsedSeconds
+    const finalAccuracy = finalTotalReps > 0 ? Math.round((finalGoodReps / finalTotalReps) * 100) : 0
+    const currentExercise = exerciseTypeRef.current
+
+    hasSavedRef.current = false
+    isSavingRef.current = false
+    persistWorkoutSession(
+      currentExercise,
+      finalTotalReps,
+      finalGoodReps,
+      finalNeedsImprovementReps,
+      finalDuration,
+      finalAccuracy
+    )
+  }, [elapsedSeconds, persistWorkoutSession])
 
   const handleStartNewWorkout = useCallback(() => {
     handleStartWorkout()
@@ -398,6 +496,13 @@ export default function WorkoutSessionPage() {
     setGoodReps(0)
     setNeedsImprovementReps(0)
     setElapsedSeconds(0)
+    setAiFeedback(null)
+    setAiFeedbackLoading(false)
+    setAiFeedbackError(null)
+    setIsSaving(false)
+    setSaveError(null)
+    hasSavedRef.current = false
+    isSavingRef.current = false
     setDisplay({
       ...INITIAL_DISPLAY,
       phase: initialPhase,
@@ -518,6 +623,9 @@ export default function WorkoutSessionPage() {
             aiFeedback={aiFeedback}
             aiFeedbackLoading={aiFeedbackLoading}
             aiFeedbackError={aiFeedbackError}
+            isSaving={isSaving}
+            saveError={saveError}
+            onRetrySave={handleRetrySave}
           />
         ) : (
           /* VIEW 2: Active / Idle / Paused Session */

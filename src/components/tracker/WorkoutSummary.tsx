@@ -11,6 +11,8 @@ import {
   TrendingUp,
   Target,
   Heart,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react'
 import type { AIPostWorkoutFeedback } from '../../types/feedback'
 
@@ -24,6 +26,9 @@ interface WorkoutSummaryProps {
   aiFeedback?: AIPostWorkoutFeedback | null
   aiFeedbackLoading?: boolean
   aiFeedbackError?: string | null
+  isSaving?: boolean
+  saveError?: string | null
+  onRetrySave?: () => void
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -75,6 +80,9 @@ export default function WorkoutSummary({
   aiFeedback = null,
   aiFeedbackLoading = false,
   aiFeedbackError = null,
+  isSaving = false,
+  saveError = null,
+  onRetrySave,
 }: WorkoutSummaryProps) {
   const { title, message } = getSummaryMessage(totalReps, goodReps)
   const accuracy = totalReps > 0 ? Math.round((goodReps / totalReps) * 100) : 0
@@ -99,6 +107,33 @@ export default function WorkoutSummary({
       <p className="text-sm sm:text-base text-slate-300 max-w-md mx-auto mb-8 leading-relaxed">
         {message}
       </p>
+
+      {/* Saving / Saved Status Notification */}
+      {isSaving && (
+        <div className="mb-6 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center gap-2 text-xs font-medium text-emerald-400">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+          <span>Saving workout...</span>
+        </div>
+      )}
+
+      {saveError && (
+        <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-rose-300 text-left">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+          {onRetrySave && (
+            <button
+              type="button"
+              onClick={onRetrySave}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 text-xs font-bold transition shrink-0 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Save</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
