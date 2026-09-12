@@ -604,7 +604,7 @@ export default function WorkoutSessionPage() {
       </nav>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex flex-col justify-center">
         {/* VIEW 1: Workout Completed Summary */}
         {sessionStatus === 'ended' ? (
           <WorkoutSummary
@@ -629,15 +629,20 @@ export default function WorkoutSessionPage() {
           />
         ) : (
           /* VIEW 2: Active / Idle / Paused Session */
-          <div className="space-y-4">
-            {/* Header / Exercise Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-4 sm:space-y-6">
+            {/* 1. HERO HEADER: AI FORM COACH */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
               <div>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-wider">
-                    Exercise
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                    AI Form Coach
                   </span>
-                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  <span className="text-xs text-slate-400 font-medium hidden sm:inline">
+                    Live movement analysis
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                  <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                     {exerciseType === 'bicep_curl'
                       ? 'BICEP CURLS'
                       : exerciseType === 'pushup'
@@ -647,11 +652,17 @@ export default function WorkoutSessionPage() {
 
                   {/* Exercise selector toggle (visible in idle state) */}
                   {sessionStatus === 'idle' && (
-                    <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-xl ml-1">
+                    <div
+                      role="radiogroup"
+                      aria-label="Select Exercise"
+                      className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 p-1 rounded-xl"
+                    >
                       <button
                         type="button"
+                        role="radio"
+                        aria-checked={exerciseType === 'squat'}
                         onClick={() => handleSelectExercise('squat')}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                           exerciseType === 'squat'
                             ? 'bg-emerald-500 text-slate-950 shadow-sm'
                             : 'text-slate-400 hover:text-white'
@@ -661,8 +672,10 @@ export default function WorkoutSessionPage() {
                       </button>
                       <button
                         type="button"
+                        role="radio"
+                        aria-checked={exerciseType === 'pushup'}
                         onClick={() => handleSelectExercise('pushup')}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                           exerciseType === 'pushup'
                             ? 'bg-emerald-500 text-slate-950 shadow-sm'
                             : 'text-slate-400 hover:text-white'
@@ -672,8 +685,10 @@ export default function WorkoutSessionPage() {
                       </button>
                       <button
                         type="button"
+                        role="radio"
+                        aria-checked={exerciseType === 'bicep_curl'}
                         onClick={() => handleSelectExercise('bicep_curl')}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                           exerciseType === 'bicep_curl'
                             ? 'bg-emerald-500 text-slate-950 shadow-sm'
                             : 'text-slate-400 hover:text-white'
@@ -686,10 +701,10 @@ export default function WorkoutSessionPage() {
                 </div>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
                   {exerciseType === 'bicep_curl'
-                    ? 'Perform bicep curls with controlled cadence and full range of motion. Live AI tracks reps and form.'
+                    ? 'Controlled cadence and full range of motion. Live AI tracks reps and posture.'
                     : exerciseType === 'pushup'
-                    ? 'Perform push-ups with straight posture and full range of motion. Live AI tracks reps and form.'
-                    : 'Perform bodyweight squats with full range of motion. Live AI tracks reps and posture.'}
+                    ? 'Straight plank posture and chest depth. Live AI tracks reps and form.'
+                    : 'Full squat depth and upright torso. Live AI tracks reps and posture.'}
                 </p>
               </div>
 
@@ -699,7 +714,7 @@ export default function WorkoutSessionPage() {
                   <button
                     type="button"
                     onClick={handleStartWorkout}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   >
                     <Play className="w-4 h-4 fill-slate-950" />
                     <span>Start Workout</span>
@@ -711,7 +726,7 @@ export default function WorkoutSessionPage() {
                     <button
                       type="button"
                       onClick={handlePause}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold text-xs sm:text-sm transition cursor-pointer"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold text-xs sm:text-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
                     >
                       <Pause className="w-4 h-4" />
                       <span>Pause</span>
@@ -719,7 +734,7 @@ export default function WorkoutSessionPage() {
                     <button
                       type="button"
                       onClick={handleEndWorkout}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs sm:text-sm transition cursor-pointer"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs sm:text-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-400"
                     >
                       <Square className="w-3.5 h-3.5 fill-rose-400" />
                       <span>End Workout</span>
@@ -732,7 +747,7 @@ export default function WorkoutSessionPage() {
                     <button
                       type="button"
                       onClick={handleResume}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
                     >
                       <Play className="w-4 h-4 fill-slate-950" />
                       <span>Resume</span>
@@ -740,7 +755,7 @@ export default function WorkoutSessionPage() {
                     <button
                       type="button"
                       onClick={handleEndWorkout}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs sm:text-sm transition cursor-pointer"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs sm:text-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-400"
                     >
                       <Square className="w-3.5 h-3.5 fill-rose-400" />
                       <span>End Workout</span>
@@ -751,11 +766,11 @@ export default function WorkoutSessionPage() {
             </div>
 
             {/* Main Interactive Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_300px] gap-6 items-start">
               {/* Camera / Setup Viewport */}
               <div className="space-y-3">
                 {sessionStatus === 'idle' ? (
-                  <div className="w-full aspect-[4/3] sm:aspect-[16/10] max-h-[520px] rounded-2xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center p-6 text-center shadow-2xl relative overflow-hidden">
+                  <div className="w-full aspect-[4/3] sm:aspect-[16/10] max-h-[560px] rounded-3xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center p-6 sm:p-10 text-center shadow-2xl relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none" />
 
                     <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4 shadow-lg shadow-emerald-500/10">
@@ -792,7 +807,7 @@ export default function WorkoutSessionPage() {
                     <button
                       type="button"
                       onClick={handleStartWorkout}
-                      className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-emerald-500/25 transition duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-emerald-500/25 transition duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
                     >
                       <Play className="w-5 h-5 fill-slate-950" />
                       <span>Start Workout</span>
@@ -805,11 +820,11 @@ export default function WorkoutSessionPage() {
                       onTrackingChange={handleTrackingChange}
                       showOverlay={true}
                       isPaused={sessionStatus === 'paused'}
-                      className="w-full shadow-2xl shadow-emerald-950/20 aspect-[4/3] sm:aspect-[16/10] max-h-[520px]"
+                      className="w-full shadow-2xl shadow-emerald-950/20 aspect-[4/3] sm:aspect-[16/10] max-h-[560px] rounded-3xl"
                     />
 
                     {/* Quick In-Video Control Bar for Convenient Desktop Access */}
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800 z-10">
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/85 backdrop-blur-md border border-slate-800 z-10 shadow-lg">
                       {sessionStatus === 'active' ? (
                         <button
                           type="button"
@@ -844,7 +859,7 @@ export default function WorkoutSessionPage() {
               </div>
 
               {/* Side Panel — Rep Counter & Form Feedback */}
-              <div className="flex flex-col sm:flex-row lg:flex-col gap-4">
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-4 sm:gap-5">
                 <RepCounter
                   repCount={display.repCount}
                   phase={display.phase}
@@ -860,6 +875,11 @@ export default function WorkoutSessionPage() {
                   }
                   isTracking={isPoseTracking}
                   isPaused={sessionStatus === 'paused'}
+                  formScore={
+                    display.repCount > 0
+                      ? Math.round((goodReps / display.repCount) * 100)
+                      : null
+                  }
                   className="flex-1 lg:flex-none"
                 />
 

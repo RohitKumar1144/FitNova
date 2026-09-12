@@ -1,5 +1,5 @@
 import type { SquatPhase, PushupPhase, BicepCurlPhase } from '../../lib/exercises/types'
-import { Dumbbell } from 'lucide-react'
+import { Dumbbell, ShieldCheck } from 'lucide-react'
 
 interface RepCounterProps {
   repCount: number
@@ -10,6 +10,10 @@ interface RepCounterProps {
   exerciseName?: string
   isTracking?: boolean
   isPaused?: boolean
+  targetReps?: number
+  formScore?: number | null
+  goodReps?: number
+  needsImprovementReps?: number
   className?: string
 }
 
@@ -38,6 +42,8 @@ export default function RepCounter({
   exerciseName = 'SQUATS',
   isTracking = true,
   isPaused = false,
+  targetReps,
+  formScore = null,
   className = '',
 }: RepCounterProps) {
   const phaseInfo = PHASE_CONFIG[phase] || { label: phase, color: 'text-slate-400', bg: 'bg-slate-500/20' }
@@ -46,21 +52,21 @@ export default function RepCounter({
 
   return (
     <div
-      className={`bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-xl ${className}`}
+      className={`bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl ${className}`}
     >
       {/* Exercise Badge & Tracking Status */}
-      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-800/80">
         <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-white">
-          <Dumbbell className="w-3.5 h-3.5 text-emerald-400" />
-          <span>{exerciseName}</span>
+          <Dumbbell className="w-4 h-4 text-emerald-400" />
+          <span className="truncate">{exerciseName}</span>
         </div>
         <span
-          className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-md border ${
+          className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
             isPaused
-              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
               : isTracking
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-slate-800 text-slate-400 border-slate-700'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+              : 'bg-slate-900 text-slate-400 border-slate-700/80'
           }`}
         >
           <span
@@ -76,27 +82,51 @@ export default function RepCounter({
         </span>
       </div>
 
-      {/* Rep Count */}
-      <div className="text-center py-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          Rep Count
+      {/* 1. HERO REP COUNTER */}
+      <div className="text-center py-2 bg-slate-900/40 border border-slate-800/60 rounded-xl p-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-400">
+          Completed Reps
         </p>
-        <p className="text-5xl font-black text-white tabular-nums tracking-tight leading-none mt-1.5">
-          {repCount}
-        </p>
+        <div className="flex items-baseline justify-center gap-1.5 mt-1">
+          <span className="text-5xl sm:text-6xl font-black text-white tabular-nums tracking-tight leading-none">
+            {repCount}
+          </span>
+          {targetReps && targetReps > 0 ? (
+            <span className="text-sm font-bold text-slate-400">
+              / {targetReps} reps
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-slate-500">
+              reps
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Divider */}
-      <div className="h-px bg-slate-800/80" />
+      {/* 2. FORM SCORE (91 / 100) */}
+      <div className="text-center py-2 bg-slate-900/40 border border-slate-800/60 rounded-xl p-3">
+        <div className="flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+          <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+          <span>Form Score</span>
+        </div>
+        <div className="flex items-baseline justify-center gap-1">
+          <span className="text-3xl font-black text-white tabular-nums tracking-tight">
+            {formScore !== null && formScore !== undefined ? formScore : '—'}
+          </span>
+          <span className="text-xs font-semibold text-slate-400">
+            / 100
+          </span>
+        </div>
+      </div>
 
-      {/* Phase Badge */}
-      <div className="space-y-1 text-center">
+      {/* 3. CURRENT PHASE */}
+      <div className="space-y-1.5 text-center">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          Current Phase
+          Movement Phase
         </p>
-        <div className="flex items-center justify-center pt-0.5">
+        <div className="flex items-center justify-center">
           <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold uppercase tracking-wider ${phaseInfo.color} ${phaseInfo.bg}`}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold uppercase tracking-wider ${phaseInfo.color} ${phaseInfo.bg} border border-current/20`}
           >
             <span className="relative flex h-2 w-2">
               <span
@@ -116,12 +146,12 @@ export default function RepCounter({
         </div>
       </div>
 
-      {/* Joint Angle */}
-      <div className="text-center pt-1 border-t border-slate-800/80">
+      {/* 4. JOINT ANGLE */}
+      <div className="text-center pt-2 border-t border-slate-800/80">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
           {displayAngleLabel}
         </p>
-        <p className="text-xl font-black text-slate-200 tabular-nums mt-0.5">
+        <p className="text-lg font-black text-slate-200 tabular-nums mt-0.5">
           {displayAngle !== null && displayAngle !== undefined ? `${Math.round(displayAngle)}\u00B0` : '\u2014'}
         </p>
       </div>

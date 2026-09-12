@@ -31,6 +31,7 @@ export default function FormFeedback({
   formStatus = 'GOOD',
   primaryFeedback = 'Get ready',
   feedbackType = 'info',
+  cues = [],
   isPaused = false,
   className = '',
 }: FormFeedbackProps) {
@@ -86,7 +87,7 @@ export default function FormFeedback({
         </div>
 
         <div
-          className={`min-h-[68px] flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 ${
+          className={`min-h-[64px] flex items-center gap-3 p-3.5 rounded-xl border transition-all duration-200 ${
             isPaused
               ? 'bg-slate-900/60 border-slate-800 text-slate-400'
               : feedbackType === 'warning'
@@ -103,12 +104,37 @@ export default function FormFeedback({
             </p>
           </div>
         </div>
+
+        {/* Real-time active cues list from analyzer */}
+        {!isPaused && cues && cues.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            {cues.map((cue, idx) => (
+              <div
+                key={idx}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${
+                  cue.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                    : cue.type === 'warning'
+                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                    : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                }`}
+              >
+                {cue.type === 'success' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                )}
+                <span className="truncate">{cue.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 3. CAMERA SETUP HINT (Section 11) */}
-      <div className="pt-2 border-t border-slate-800/60 flex items-start gap-1.5 text-[11px] text-slate-500 leading-tight">
-        <Video className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-        <span>Tip: Best results with a side or 3/4 camera view.</span>
+      {/* 3. CAMERA SETUP GUIDANCE */}
+      <div className="pt-2 border-t border-slate-800/60 flex items-start gap-1.5 text-[11px] text-slate-400 leading-snug">
+        <Video className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+        <span>Stand sideways and step back so your full body is visible.</span>
       </div>
     </div>
   )

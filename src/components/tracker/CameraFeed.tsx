@@ -256,7 +256,7 @@ export default function CameraFeed({
 
       {/* Tracking Indicator Badge */}
       {!isCameraStarting && !isModelLoading && !error && (
-        <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-lg px-2.5 py-1 flex items-center gap-2 z-10">
+        <div className="absolute top-3 left-3 bg-slate-950/85 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1.5 flex items-center gap-2 z-10 shadow-lg">
           <span className="relative flex h-2 w-2">
             <span
               className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
@@ -273,12 +273,12 @@ export default function CameraFeed({
               }`}
             />
           </span>
-          <span className="text-[11px] font-mono font-medium text-slate-300">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
             {isPaused
-              ? 'Tracking Paused'
+              ? 'PAUSED'
               : currentLandmarks
-              ? 'Pose Detected (33 pts)'
-              : 'Searching for Pose...'}
+              ? 'POSE DETECTED'
+              : 'SEARCHING FOR POSE'}
           </span>
         </div>
       )}

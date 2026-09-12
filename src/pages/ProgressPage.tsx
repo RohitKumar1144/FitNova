@@ -31,6 +31,8 @@ import {
   getDetailedProgressDashboardData,
   type ProgressDashboardData,
 } from '../lib/supabase/queries'
+import { calculateBadges } from '../lib/progress/badges'
+import BadgesSection from '../components/progress/BadgesSection'
 
 export default function ProgressPage() {
   const { user, loading: authLoading } = useAuth()
@@ -197,26 +199,38 @@ export default function ProgressPage() {
 
         {/* EMPTY STATE OR FULL ANALYTICS */}
         {!data.hasHistory ? (
-          <div className="rounded-3xl bg-slate-900/50 border border-slate-800 p-10 sm:p-14 text-center max-w-xl mx-auto shadow-2xl space-y-5">
-            <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center mx-auto text-slate-400">
-              <Activity className="w-8 h-8" />
+          <div className="space-y-8">
+            <div className="rounded-3xl bg-slate-900/50 border border-slate-800 p-10 sm:p-14 text-center max-w-xl mx-auto shadow-2xl space-y-5">
+              <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center mx-auto text-slate-400">
+                <Activity className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-bold text-white">
+                Your progress will appear here after your first workout.
+              </h3>
+              <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+                Every completed repetition, posture score, and consistency streak is calculated automatically from your camera-tracked routines.
+              </p>
+              <div className="pt-2">
+                <Link
+                  to="/workout-session"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition duration-200"
+                >
+                  <Play className="w-4 h-4 fill-slate-950" />
+                  <span>Start Your First Workout</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-white">
-              Your progress will appear here after your first workout.
-            </h3>
-            <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-              Every completed repetition, posture score, and consistency streak is calculated automatically from your camera-tracked routines.
-            </p>
-            <div className="pt-2">
-              <Link
-                to="/workout-session"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition duration-200"
-              >
-                <Play className="w-4 h-4 fill-slate-950" />
-                <span>Start Your First Workout</span>
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-            </div>
+
+            {/* ACHIEVEMENTS (All locked for new user) */}
+            <BadgesSection
+              badges={calculateBadges({
+                totalWorkouts: data.totalWorkouts,
+                currentStreak: data.currentStreak,
+                totalReps: data.totalReps,
+                avgForm: data.avgForm,
+              })}
+            />
           </div>
         ) : (
           <>
@@ -505,6 +519,16 @@ export default function ProgressPage() {
                 </Link>
               </div>
             )}
+
+            {/* 8. ACHIEVEMENTS SECTION */}
+            <BadgesSection
+              badges={calculateBadges({
+                totalWorkouts: data.totalWorkouts,
+                currentStreak: data.currentStreak,
+                totalReps: data.totalReps,
+                avgForm: data.avgForm,
+              })}
+            />
           </>
         )}
 
