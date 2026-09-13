@@ -11,9 +11,17 @@ export async function signUpWithEmail(email: string, password: string) {
     await supabase.auth.signOut()
   }
 
+  const redirectUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/auth`
+      : 'https://fit-nova-blond.vercel.app/auth'
+
   return await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: redirectUrl,
+    },
   })
 }
 
