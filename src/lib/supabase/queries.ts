@@ -67,22 +67,11 @@ export async function getDashboardStats(userId: string): Promise<{ data: Dashboa
     let totalSessions = 0
     let avgFormScore = 0
 
-    if (snapshots && snapshots.length > 0) {
-      currentStreak = snapshots[0].streak_days || 0
-      totalReps = snapshots[0].total_reps || 0
-      totalSessions = snapshots[0].total_sessions || 0
-    }
-
     if (sessions && sessions.length > 0) {
-      // Use session count from actual records if snapshot didn't have it
-      if (totalSessions === 0) {
-        totalSessions = sessions.length
-      }
-      // Derive total reps from sessions if snapshot didn't have it
-      if (totalReps === 0) {
-        totalReps = sessions.reduce((acc, s) => acc + (s.rep_count || 0), 0)
-      }
-      // Derive average form score from good_form_reps / total tracked reps
+      // 1. Authoritative: Derive from live workout_sessions whenever present
+      totalSessions = sessions.length
+      totalReps = sessions.reduce((acc, s) => acc + (s.rep_count || 0), 0)
+
       const totalGood = sessions.reduce((acc, s) => acc + (s.good_form_reps || 0), 0)
       const totalBad = sessions.reduce((acc, s) => acc + (s.bad_form_reps || 0), 0)
       const totalTracked = totalGood + totalBad
@@ -90,13 +79,17 @@ export async function getDashboardStats(userId: string): Promise<{ data: Dashboa
         avgFormScore = Math.round((totalGood / totalTracked) * 100)
       }
 
-      // Calculate streak deterministically from session timestamps
       const sessionTimestamps = sessions
         .map((s) => s.created_at)
         .filter((ts): ts is string => Boolean(ts))
       if (sessionTimestamps.length > 0) {
         currentStreak = calculateCurrentStreak(sessionTimestamps)
       }
+    } else if (snapshots && snapshots.length > 0) {
+      // 2. Fallback: Use progress_snapshots ONLY when there are no workout_sessions
+      currentStreak = snapshots[0].streak_days || 0
+      totalReps = snapshots[0].total_reps || 0
+      totalSessions = snapshots[0].total_sessions || 0
     }
 
     return {
