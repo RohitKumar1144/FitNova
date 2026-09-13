@@ -201,7 +201,7 @@ export default function OnboardingPage() {
 
       {/* Subtle footer info */}
       <footer className="py-6 text-center text-xs text-slate-400 border-t border-slate-900">
-        FitNova AI Coaching • Smart India Hackathon
+        FitNova AI Coaching • Real-Time Computer Vision
       </footer>
     </div>
   )

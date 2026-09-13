@@ -19,7 +19,7 @@ export default function DemoModeBadge({
   return (
     <div
       className={`inline-flex items-center rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-wider shadow-sm select-none transition-all hover:bg-amber-500/15 ${sizeClasses} ${className}`}
-      title="FitNova Live SIH Demo Session"
+      title="FitNova Interactive Demo Session"
     >
       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
       <span className={showTextOnMobile ? 'inline' : 'hidden sm:inline'}>DEMO MODE</span>

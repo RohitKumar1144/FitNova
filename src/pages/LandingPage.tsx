@@ -106,7 +106,7 @@ export default function LandingPage() {
       step: '01',
       title: 'Personalize',
       description: 'Create your account and complete onboarding with your fitness level, goal, schedule, and gear.',
-      detail: 'Tailored for students, busy beginners, and home routines.',
+      detail: 'Tailored for busy schedules, beginners, and home routines.',
       icon: <Target className="w-5 h-5 text-emerald-400" />,
       tag: 'Onboarding',
     },
@@ -307,7 +307,7 @@ export default function LandingPage() {
             <div className="lg:col-span-7 text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-6">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Smart India Hackathon • AI Fitness Companion</span>
+                <span>Adaptive Vision • AI Fitness Companion</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.15] mb-6">
@@ -381,7 +381,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-teal-300">Free</p>
-                  <p className="text-xs text-slate-400">For Students</p>
+                  <p className="text-xs text-slate-400">To Get Started</p>
                 </div>
               </div>
             </div>
@@ -733,7 +733,7 @@ export default function LandingPage() {
                 Fit<span className="text-emerald-400">Nova</span>
               </span>
               <span className="text-xs text-slate-400 ml-2">
-                — AI-Powered Personal Fitness Coach for Students
+                — AI-Powered Personal Fitness Coach
               </span>
             </div>
 
@@ -763,7 +763,7 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-8 pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-            <p>© {new Date().getFullYear()} FitNova. Built for Smart India Hackathon (SIH). All rights reserved.</p>
+            <p>© {new Date().getFullYear()} FitNova. All rights reserved.</p>
             <p className="text-slate-400">Empowering health and fitness with browser-based AI vision.</p>
           </div>
         </div>
