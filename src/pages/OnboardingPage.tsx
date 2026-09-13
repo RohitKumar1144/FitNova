@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Activity, LogOut, CheckCircle2 } from 'lucide-react'
-import { signOut, useAuth } from '../lib/supabase/auth'
+import { Activity, LogOut, CheckCircle2, ShieldAlert, LayoutDashboard } from 'lucide-react'
+import { signOut, useAuth, isDemoMode } from '../lib/supabase/auth'
 import { upsertProfile, getProfile } from '../lib/supabase/queries'
 import OnboardingForm from '../components/onboarding/OnboardingForm'
+import DemoModeBadge from '../components/common/DemoModeBadge'
 import type { OnboardingFormData } from '../types/profile'
 
 export default function OnboardingPage() {
@@ -25,7 +26,7 @@ export default function OnboardingPage() {
   // Check if profile already exists or pre-fill name
   useEffect(() => {
     async function checkExistingProfile() {
-      if (!user) return
+      if (!user || isDemoMode(user)) return
       try {
         const { data } = await getProfile(user.id)
         if (data?.full_name) {
@@ -36,7 +37,7 @@ export default function OnboardingPage() {
       }
     }
 
-    if (user) {
+    if (user && !isDemoMode(user)) {
       checkExistingProfile()
     }
   }, [user])
@@ -49,6 +50,11 @@ export default function OnboardingPage() {
   const handleSubmit = async (formData: OnboardingFormData) => {
     if (!user) {
       setError('You must be logged in to save your profile.')
+      return
+    }
+
+    if (isDemoMode(user)) {
+      setError('Demo mode uses a shared demo profile. Sign out and create your own account to customize your profile.')
       return
     }
 
@@ -121,6 +127,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="flex items-center gap-4">
+            {isDemoMode(user) && <DemoModeBadge size="sm" showTextOnMobile={true} />}
             <span className="text-xs text-slate-400 hidden sm:inline-block">
               {user.email}
             </span>
@@ -138,7 +145,38 @@ export default function OnboardingPage() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-10 sm:py-16">
-        {isSuccess ? (
+        {isDemoMode(user) ? (
+          <div className="max-w-md w-full bg-slate-900/90 border border-amber-500/30 backdrop-blur-xl rounded-3xl p-8 text-center shadow-2xl shadow-amber-950/20">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-8 h-8 text-amber-400" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider mb-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              Demo Mode Active
+            </div>
+            <h2 className="text-2xl font-extrabold text-white mb-3">Demo Profile Protected</h2>
+            <p className="text-sm text-slate-300 leading-relaxed mb-6">
+              Demo mode uses a shared demo profile. Sign out and create your own account to customize your profile.
+            </p>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Return to Dashboard
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 font-semibold text-xs transition cursor-pointer"
+              >
+                Sign Out &amp; Create Account
+              </button>
+            </div>
+          </div>
+        ) : isSuccess ? (
           <div className="max-w-md w-full bg-slate-900/80 border border-emerald-500/40 backdrop-blur-xl rounded-3xl p-8 text-center shadow-2xl shadow-emerald-950/30">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-8 h-8 text-emerald-400" />

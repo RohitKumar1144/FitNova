@@ -69,12 +69,22 @@ export async function signInAsDemoUser(): Promise<{ data: Session | null; error:
   }
 }
 
+export const DEMO_USER_ID = '1967e645-513a-45b9-a1db-cbcbd7ccebd0'
+export const DEMO_USER_EMAIL = 'rhtk.6772@gmail.com'
+export const DEFAULT_DEMO_EMAIL = 'demo@fitnova.app'
+
 export function isDemoMode(user?: User | null): boolean {
   if (typeof window !== 'undefined' && localStorage.getItem('fitnova_demo_mode') === 'true') {
     return true
   }
-  if (user?.email && user.email.toLowerCase().includes('demo')) {
+  if (user?.id && user.id === DEMO_USER_ID) {
     return true
+  }
+  if (user?.email) {
+    const emailLower = user.email.toLowerCase()
+    if (emailLower === DEMO_USER_EMAIL || emailLower === DEFAULT_DEMO_EMAIL) {
+      return true
+    }
   }
   return false
 }

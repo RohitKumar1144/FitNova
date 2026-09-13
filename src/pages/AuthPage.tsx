@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { signInWithEmail, signUpWithEmail, signInAsDemoUser, signOut, useAuth, isDemoMode } from '../lib/supabase/auth'
+import { getProfile } from '../lib/supabase/queries'
 
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -158,7 +159,16 @@ export default function AuthPage() {
         }
 
         if (data.session) {
-          navigate('/onboarding')
+          try {
+            const { data: profile } = await getProfile(data.session.user.id)
+            if (profile?.full_name) {
+              navigate('/dashboard')
+            } else {
+              navigate('/onboarding')
+            }
+          } catch {
+            navigate('/dashboard')
+          }
         }
       }
     } catch (err: unknown) {
