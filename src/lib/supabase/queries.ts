@@ -132,6 +132,39 @@ export async function saveWorkoutSession(sessionData: {
   return { data, error }
 }
 
+export interface WorkoutSessionRecord {
+  id: string
+  user_id?: string
+  exercise_type: string
+  rep_count: number
+  good_form_reps: number
+  bad_form_reps: number
+  duration_seconds: number
+  created_at: string
+  ai_feedback?: any
+}
+
+/**
+ * Retrieves the user's completed workout sessions, ordered newest first.
+ */
+export async function getUserWorkoutSessions(
+  userId: string,
+  limit: number = 50
+): Promise<{ data: WorkoutSessionRecord[]; error: unknown }> {
+  try {
+    const { data, error } = await supabase
+      .from('workout_sessions')
+      .select('id, user_id, exercise_type, rep_count, good_form_reps, bad_form_reps, duration_seconds, created_at, ai_feedback')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    return { data: (data as WorkoutSessionRecord[]) || [], error: error || null }
+  } catch (err) {
+    return { data: [], error: err }
+  }
+}
+
 export interface RecentExercisePerformanceRecord {
   id: string
   exercise_type: string

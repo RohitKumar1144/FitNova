@@ -33,6 +33,7 @@ import {
 } from '../lib/supabase/queries'
 import { calculateBadges } from '../lib/progress/badges'
 import BadgesSection from '../components/progress/BadgesSection'
+import WorkoutHistory from '../components/progress/WorkoutHistory'
 import DemoModeBadge from '../components/common/DemoModeBadge'
 
 export default function ProgressPage() {
@@ -223,6 +224,9 @@ export default function ProgressPage() {
                 </Link>
               </div>
             </div>
+
+            {/* WORKOUT HISTORY */}
+            <WorkoutHistory userId={user.id} />
 
             {/* ACHIEVEMENTS (All locked for new user) */}
             <BadgesSection
@@ -522,7 +526,10 @@ export default function ProgressPage() {
               </div>
             )}
 
-            {/* 8. ACHIEVEMENTS SECTION */}
+            {/* 8. WORKOUT HISTORY */}
+            <WorkoutHistory userId={user.id} />
+
+            {/* 9. ACHIEVEMENTS SECTION */}
             <BadgesSection
               badges={calculateBadges({
                 totalWorkouts: data.totalWorkouts,
