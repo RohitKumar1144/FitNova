@@ -3,6 +3,14 @@ import { supabase } from './client'
 import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 
 export async function signUpWithEmail(email: string, password: string) {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('fitnova_demo_mode')
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session) {
+    await supabase.auth.signOut()
+  }
+
   return await supabase.auth.signUp({
     email,
     password,
@@ -10,6 +18,14 @@ export async function signUpWithEmail(email: string, password: string) {
 }
 
 export async function signInWithEmail(email: string, password: string) {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('fitnova_demo_mode')
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session) {
+    await supabase.auth.signOut()
+  }
+
   return await supabase.auth.signInWithPassword({
     email,
     password,

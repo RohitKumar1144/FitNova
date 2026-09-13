@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -13,7 +13,7 @@ import {
   Sparkles,
   ChevronRight,
 } from 'lucide-react'
-import { signInWithEmail, signUpWithEmail, signInAsDemoUser, useAuth } from '../lib/supabase/auth'
+import { signInWithEmail, signUpWithEmail, signInAsDemoUser, signOut, useAuth, isDemoMode } from '../lib/supabase/auth'
 
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -28,8 +28,18 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { user, isAuthenticated, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+
+  const handleSwitchAccount = async () => {
+    try {
+      await signOut()
+      setError(null)
+      setSuccessMessage('Signed out. You can now sign in or register with a new account.')
+    } catch (err: unknown) {
+      console.error('Sign out error:', err)
+    }
+  }
 
   const handleDemoLogin = async () => {
     if (demoLoading || loading) return
@@ -54,12 +64,6 @@ export default function AuthPage() {
       setDemoLoading(false)
     }
   }
-
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      navigate('/onboarding', { replace: true })
-    }
-  }, [isAuthenticated, authLoading, navigate])
 
   const validateForm = () => {
     setError(null)
@@ -113,6 +117,13 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('fitnova_demo_mode')
+        }
+        if (isAuthenticated) {
+          await signOut()
+        }
+
         const { data, error: signUpError } = await signUpWithEmail(email.trim(), password)
 
         if (signUpError) {
@@ -127,13 +138,18 @@ export default function AuthPage() {
             navigate('/onboarding')
           }, 1000)
         } else if (data.user) {
-          setSuccessMessage(
-            'Account created successfully! Please check your email inbox to confirm your account before signing in.'
-          )
+          setSuccessMessage('Account created. Please confirm your email, then sign in.')
         } else {
           setSuccessMessage('Sign up submitted. Please check your email.')
         }
       } else {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('fitnova_demo_mode')
+        }
+        if (isAuthenticated) {
+          await signOut()
+        }
+
         const { data, error: signInError } = await signInWithEmail(email.trim(), password)
 
         if (signInError) {
@@ -197,6 +213,38 @@ export default function AuthPage() {
               : 'Sign in to access your workouts and tracker.'}
           </p>
         </div>
+
+        {/* Active Session Notification / Account Switcher */}
+        {!authLoading && isAuthenticated && user && !loading && !demoLoading && (
+          <div className="mb-6 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs space-y-3 shadow-inner">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <span className="text-[11px] text-slate-400 block">Signed in as</span>
+                <span className="font-bold text-white text-sm truncate block">{user.email || 'Athlete'}</span>
+              </div>
+              {isDemoMode(user) && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+                  DEMO MODE
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+              <Link
+                to="/dashboard"
+                className="flex-1 py-2 text-center rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition"
+              >
+                Go to Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleSwitchAccount}
+                className="flex-1 py-2 text-center rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-semibold transition cursor-pointer"
+              >
+                Sign Out / Switch
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tab Switcher */}
         <div className="grid grid-cols-2 p-1 bg-slate-950/70 border border-slate-800 rounded-xl mb-6 text-sm font-medium">
