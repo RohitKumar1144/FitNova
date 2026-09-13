@@ -36,8 +36,8 @@ import type {
 export const DEFAULT_BICEP_CURL_THRESHOLDS: BicepCurlThresholds = {
   extendedAngle: 150,
   curlStartAngle: 135,
-  contractedAngle: 65,
-  goodContractionAngle: 55,
+  contractedAngle: 75,
+  goodContractionAngle: 65,
   topHysteresis: 15,
   minVisibility: 0.15,
   minRepDurationMs: 700,
@@ -56,6 +56,8 @@ export const DEFAULT_BICEP_CURL_THRESHOLDS: BicepCurlThresholds = {
 interface StartingArmGeometry {
   leftElbow?: { x: number; y: number }
   rightElbow?: { x: number; y: number }
+  leftShoulder?: { x: number; y: number }
+  rightShoulder?: { x: number; y: number }
   torsoLength: number
 }
 
@@ -71,6 +73,8 @@ interface BicepCurlAnalyzerState {
   worstElbowDisplacement: number
   /** Consecutive frames in a valid, extended starting position. */
   stableStartFrames: number
+  /** Consecutive frames the elbow displacement exceeded abort threshold during active rep. */
+  consecutiveDisplacementAborts: number
   /** Geometry captured at the moment the curl begins. */
   startGeometry: StartingArmGeometry | null
   lastRepRating: FormRating | null
@@ -89,6 +93,7 @@ function createInitialState(config: BicepCurlThresholds): BicepCurlAnalyzerState
     worstElbowDrift: 0,
     worstElbowDisplacement: 0,
     stableStartFrames: 0,
+    consecutiveDisplacementAborts: 0,
     startGeometry: null,
     lastRepRating: null,
     currentFormCues: [],
@@ -136,13 +141,25 @@ export function computeTorsoLength(landmarks: NormalizedLandmark[]): number {
 /**
  * Calculates displacement of the elbow from its starting position,
  * normalized by the user's torso length.
+ * When currentShoulder and startShoulder are provided, displacement is calculated
+ * relative to the shoulder vector, preventing false aborts caused by natural body sway.
  */
 export function computeElbowDisplacementRatio(
   currentElbow: NormalizedLandmark,
   startElbow: { x: number; y: number },
   torsoLength: number,
+  currentShoulder?: NormalizedLandmark,
+  startShoulder?: { x: number; y: number },
 ): number {
   if (torsoLength <= 0.05) return 0
+  if (currentShoulder && startShoulder) {
+    const curRelX = currentElbow.x - currentShoulder.x
+    const curRelY = currentElbow.y - currentShoulder.y
+    const startRelX = startElbow.x - startShoulder.x
+    const startRelY = startElbow.y - startShoulder.y
+    const dist = Math.hypot(curRelX - startRelX, curRelY - startRelY)
+    return dist / torsoLength
+  }
   const dist = Math.hypot(currentElbow.x - startElbow.x, currentElbow.y - startElbow.y)
   return dist / torsoLength
 }
@@ -355,91 +372,121 @@ export function analyzeBicepCurlFrame(
   }
 
   // 3. Compute elbow angles & smooth
+  let rawLeftAngle: number | null = null
+  let rawRightAngle: number | null = null
   let leftAngle: number | null = null
   let rightAngle: number | null = null
 
   if (leftVisible) {
-    const rawLeft = calculateAngle(leftShoulder, leftElbow, leftWrist)
-    leftAngle = state.leftElbowSmoother.next(rawLeft)
+    rawLeftAngle = calculateAngle(leftShoulder, leftElbow, leftWrist)
+    leftAngle = state.leftElbowSmoother.next(rawLeftAngle)
   }
   if (rightVisible) {
-    const rawRight = calculateAngle(rightShoulder, rightElbow, rightWrist)
-    rightAngle = state.rightElbowSmoother.next(rawRight)
+    rawRightAngle = calculateAngle(rightShoulder, rightElbow, rightWrist)
+    rightAngle = state.rightElbowSmoother.next(rawRightAngle)
   }
 
   // 4. Select active arm (or both)
-  let activeArm: 'left' | 'right' | 'both' = 'both'
-  let primaryElbowAngle: number
-  let primaryElbowDrift: number
+  // Lock activeArm during an active rep cycle (phase !== 'EXTENDED') so the arm cannot flip mid-rep
+  const leftDrift = computeElbowDriftAngle(leftShoulder, leftElbow, leftHip)
+  const rightDrift = computeElbowDriftAngle(rightShoulder, rightElbow, rightHip)
 
-  if (leftAngle !== null && rightAngle !== null) {
-    const leftDrift = computeElbowDriftAngle(leftShoulder, leftElbow, leftHip)
-    const rightDrift = computeElbowDriftAngle(rightShoulder, rightElbow, rightHip)
+  let activeArm: 'left' | 'right' | 'both' = state.activeArm
 
-    // Check if both arms are curling simultaneously
-    const bothCurling = leftAngle < thresholds.curlStartAngle && rightAngle < thresholds.curlStartAngle
-    if (bothCurling) {
-      activeArm = 'both'
-      primaryElbowAngle = (leftAngle + rightAngle) / 2
-      primaryElbowDrift = Math.max(leftDrift, rightDrift)
-    } else if (leftAngle < rightAngle - 10) {
-      activeArm = 'left'
-      primaryElbowAngle = leftAngle
-      primaryElbowDrift = leftDrift
-    } else if (rightAngle < leftAngle - 10) {
-      activeArm = 'right'
-      primaryElbowAngle = rightAngle
-      primaryElbowDrift = rightDrift
-    } else {
-      // Both similar / extended: choose arm with higher landmark visibility
-      const leftVis = (leftShoulder.visibility ?? 0) + (leftElbow.visibility ?? 0) + (leftWrist.visibility ?? 0)
-      const rightVis = (rightShoulder.visibility ?? 0) + (rightElbow.visibility ?? 0) + (rightWrist.visibility ?? 0)
-      if (leftVis >= rightVis) {
+  if (state.phase === 'EXTENDED') {
+    if (leftAngle !== null && rightAngle !== null) {
+      const bothCurling = leftAngle < thresholds.curlStartAngle && rightAngle < thresholds.curlStartAngle
+      if (bothCurling) {
+        activeArm = 'both'
+      } else if (leftAngle < rightAngle - 10) {
         activeArm = 'left'
-        primaryElbowAngle = leftAngle
-        primaryElbowDrift = leftDrift
-      } else {
+      } else if (rightAngle < leftAngle - 10) {
         activeArm = 'right'
-        primaryElbowAngle = rightAngle
-        primaryElbowDrift = rightDrift
+      } else {
+        // Both similar / extended: choose arm with higher landmark visibility
+        const leftVis = (leftShoulder.visibility ?? 0) + (leftElbow.visibility ?? 0) + (leftWrist.visibility ?? 0)
+        const rightVis = (rightShoulder.visibility ?? 0) + (rightElbow.visibility ?? 0) + (rightWrist.visibility ?? 0)
+        activeArm = leftVis >= rightVis ? 'left' : 'right'
       }
+    } else if (leftAngle !== null) {
+      activeArm = 'left'
+    } else {
+      activeArm = 'right'
     }
-  } else if (leftAngle !== null) {
-    activeArm = 'left'
-    primaryElbowAngle = leftAngle
-    primaryElbowDrift = computeElbowDriftAngle(leftShoulder, leftElbow, leftHip)
-  } else {
-    activeArm = 'right'
-    primaryElbowAngle = rightAngle!
-    primaryElbowDrift = computeElbowDriftAngle(rightShoulder, rightElbow, rightHip)
+    state.activeArm = activeArm
   }
 
-  state.activeArm = activeArm
+  let primaryElbowAngle: number
+  let primaryRawAngle: number
+  let primaryElbowDrift: number
+
+  if (activeArm === 'left') {
+    primaryElbowAngle = leftAngle ?? rightAngle ?? 180
+    primaryRawAngle = rawLeftAngle ?? rawRightAngle ?? 180
+    primaryElbowDrift = leftDrift
+  } else if (activeArm === 'right') {
+    primaryElbowAngle = rightAngle ?? leftAngle ?? 180
+    primaryRawAngle = rawRightAngle ?? rawLeftAngle ?? 180
+    primaryElbowDrift = rightDrift
+  } else {
+    primaryElbowAngle =
+      leftAngle !== null && rightAngle !== null
+        ? (leftAngle + rightAngle) / 2
+        : (leftAngle ?? rightAngle ?? 180)
+    primaryRawAngle =
+      rawLeftAngle !== null && rawRightAngle !== null
+        ? (rawLeftAngle + rawRightAngle) / 2
+        : (rawLeftAngle ?? rawRightAngle ?? 180)
+    primaryElbowDrift = Math.max(leftDrift, rightDrift)
+  }
 
   // 5. Calculate body-relative elbow displacement if rep is active
   let currentDisplacementRatio = 0
   if (state.startGeometry) {
-    const torsoLength = state.startGeometry.torsoLength
-    if (activeArm === 'left' && state.startGeometry.leftElbow && leftVisible) {
+    const {
+      torsoLength,
+      leftElbow: startLeftElbow,
+      rightElbow: startRightElbow,
+      leftShoulder: startLeftShoulder,
+      rightShoulder: startRightShoulder,
+    } = state.startGeometry
+
+    if (activeArm === 'left' && startLeftElbow && leftVisible) {
       currentDisplacementRatio = computeElbowDisplacementRatio(
         leftElbow,
-        state.startGeometry.leftElbow,
+        startLeftElbow,
         torsoLength,
+        leftShoulder,
+        startLeftShoulder,
       )
-    } else if (activeArm === 'right' && state.startGeometry.rightElbow && rightVisible) {
+    } else if (activeArm === 'right' && startRightElbow && rightVisible) {
       currentDisplacementRatio = computeElbowDisplacementRatio(
         rightElbow,
-        state.startGeometry.rightElbow,
+        startRightElbow,
         torsoLength,
+        rightShoulder,
+        startRightShoulder,
       )
     } else if (activeArm === 'both') {
       const leftDisp =
-        state.startGeometry.leftElbow && leftVisible
-          ? computeElbowDisplacementRatio(leftElbow, state.startGeometry.leftElbow, torsoLength)
+        startLeftElbow && leftVisible
+          ? computeElbowDisplacementRatio(
+              leftElbow,
+              startLeftElbow,
+              torsoLength,
+              leftShoulder,
+              startLeftShoulder,
+            )
           : 0
       const rightDisp =
-        state.startGeometry.rightElbow && rightVisible
-          ? computeElbowDisplacementRatio(rightElbow, state.startGeometry.rightElbow, torsoLength)
+        startRightElbow && rightVisible
+          ? computeElbowDisplacementRatio(
+              rightElbow,
+              startRightElbow,
+              torsoLength,
+              rightShoulder,
+              startRightShoulder,
+            )
           : 0
       currentDisplacementRatio = Math.max(leftDisp, rightDisp)
     }
@@ -475,9 +522,12 @@ export function analyzeBicepCurlFrame(
         state.contractedAngle = primaryElbowAngle
         state.worstElbowDrift = primaryElbowDrift
         state.worstElbowDisplacement = 0
+        state.consecutiveDisplacementAborts = 0
         state.startGeometry = {
           leftElbow: leftVisible ? { x: leftElbow.x, y: leftElbow.y } : undefined,
           rightElbow: rightVisible ? { x: rightElbow.x, y: rightElbow.y } : undefined,
+          leftShoulder: leftVisible ? { x: leftShoulder.x, y: leftShoulder.y } : undefined,
+          rightShoulder: rightVisible ? { x: rightShoulder.x, y: rightShoulder.y } : undefined,
           torsoLength,
         }
         state.stableStartFrames = 0
@@ -498,29 +548,41 @@ export function analyzeBicepCurlFrame(
       const upperArmRaisedTooMuch = primaryElbowDrift > thresholds.maxUpperArmDriftAngle
 
       if (elbowDisplacedTooMuch || upperArmRaisedTooMuch) {
-        // INVALID MOVEMENT — ABORT REP IMMEDIATELY
-        state.phase = 'EXTENDED'
-        state.repStartTimestamp = null
-        state.contractedAngle = 180
-        state.worstElbowDrift = 0
-        state.worstElbowDisplacement = 0
-        state.stableStartFrames = 0
-        state.startGeometry = null
-        state.currentFormCues = [{ message: 'Keep your elbow close to your side', type: 'warning' }]
+        // Debounce false aborts from single-frame camera/landmark jitter
+        state.consecutiveDisplacementAborts += 1
+        if (state.consecutiveDisplacementAborts >= 3) {
+          // INVALID MOVEMENT — ABORT REP AFTER 3 CONSECUTIVE FRAMES
+          state.phase = 'EXTENDED'
+          state.repStartTimestamp = null
+          state.contractedAngle = 180
+          state.worstElbowDrift = 0
+          state.worstElbowDisplacement = 0
+          state.stableStartFrames = 0
+          state.startGeometry = null
+          state.consecutiveDisplacementAborts = 0
+          state.currentFormCues = [{ message: 'Keep your elbow close to your side', type: 'warning' }]
 
-        return {
-          phase: state.phase,
-          elbowAngle: primaryElbowAngle,
-          repCount: state.repCount,
-          currentFormCues: state.currentFormCues,
-          lastRepRating: state.lastRepRating,
-          contractedAngle: state.contractedAngle,
-          activeArm: state.activeArm,
+          return {
+            phase: state.phase,
+            elbowAngle: primaryElbowAngle,
+            repCount: state.repCount,
+            currentFormCues: state.currentFormCues,
+            lastRepRating: state.lastRepRating,
+            contractedAngle: state.contractedAngle,
+            activeArm: state.activeArm,
+          }
         }
+      } else {
+        state.consecutiveDisplacementAborts = 0
       }
 
       if (state.phase === 'CURLING_UP') {
-        if (primaryElbowAngle <= thresholds.contractedAngle) {
+        const reachedContraction =
+          primaryElbowAngle <= thresholds.contractedAngle ||
+          (primaryRawAngle <= thresholds.contractedAngle &&
+            primaryElbowAngle <= thresholds.contractedAngle + 8)
+
+        if (reachedContraction) {
           state.phase = 'CONTRACTED'
         } else if (primaryElbowAngle >= thresholds.extendedAngle) {
           // Aborted curl: returned to extension without completing contraction
@@ -531,6 +593,7 @@ export function analyzeBicepCurlFrame(
           state.worstElbowDisplacement = 0
           state.stableStartFrames = 1
           state.startGeometry = null
+          state.consecutiveDisplacementAborts = 0
         }
       } else if (state.phase === 'CONTRACTED') {
         if (primaryElbowAngle < state.contractedAngle) {
@@ -540,7 +603,13 @@ export function analyzeBicepCurlFrame(
           state.phase = 'LOWERING'
         }
       } else if (state.phase === 'LOWERING') {
-        if (primaryElbowAngle >= thresholds.extendedAngle) {
+        // Allow return to extended position (tolerance of 8° allows natural lockout without hyperextension)
+        const reachedExtension =
+          primaryElbowAngle >= thresholds.extendedAngle - 8 ||
+          (primaryRawAngle >= thresholds.extendedAngle - 8 &&
+            primaryElbowAngle >= thresholds.extendedAngle - 15)
+
+        if (reachedExtension) {
           // Returned to full extension — validate rep completion
           const repDuration = state.repStartTimestamp
             ? timestampMs - state.repStartTimestamp
@@ -567,6 +636,7 @@ export function analyzeBicepCurlFrame(
           state.worstElbowDisplacement = 0
           state.startGeometry = null
           state.stableStartFrames = 1 // Already in extended position
+          state.consecutiveDisplacementAborts = 0
         } else if (primaryElbowAngle <= thresholds.contractedAngle) {
           // Curled back up
           state.phase = 'CONTRACTED'

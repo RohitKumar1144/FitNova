@@ -46,8 +46,8 @@ export const DEFAULT_PUSHUP_THRESHOLDS: PushupThresholds = {
   minVisibility: 0.15,
   minRepDurationMs: 700,
   smoothingAlpha: 0.35,
-  minBodyAlignmentAngle: 135,
-  maxBodyAngleFromHorizontal: 45,
+  minBodyAlignmentAngle: 125,
+  maxBodyAngleFromHorizontal: 55,
   minPlankStableFrames: 4,
 }
 
@@ -70,6 +70,8 @@ interface PushupAnalyzerState {
   rightElbowSmoother: EMASmoother
   /** Number of consecutive frames the user has been in a valid horizontal plank. */
   consecutivePlankFrames: number
+  /** Number of consecutive frames the user was not in a plank during an active rep attempt. */
+  consecutiveNonPlankFrames: number
   /** Whether the user is currently stabilized in plank position. */
   isPlankStable: boolean
 }
@@ -86,6 +88,7 @@ function createInitialPushupState(config: PushupThresholds): PushupAnalyzerState
     leftElbowSmoother: new EMASmoother(config.smoothingAlpha),
     rightElbowSmoother: new EMASmoother(config.smoothingAlpha),
     consecutivePlankFrames: 0,
+    consecutiveNonPlankFrames: 0,
     isPlankStable: false,
   }
 }
@@ -414,9 +417,18 @@ export function analyzePushupFrame(
   const elbowAngle = computeElbowAngle(landmarks)
 
   if (elbowAngle === null) {
-    // If landmarks lost, reset stability
+    // If landmarks lost, increment non-plank dropout counter
     state.consecutivePlankFrames = 0
-    state.isPlankStable = false
+    state.consecutiveNonPlankFrames += 1
+    if (state.consecutiveNonPlankFrames >= 3) {
+      state.isPlankStable = false
+      if (state.phase !== 'TOP') {
+        state.phase = 'TOP'
+        state.repStartTimestamp = null
+        state.deepestAngle = 180
+        state.worstBodyAngle = 180
+      }
+    }
 
     return {
       phase: state.phase,
@@ -434,12 +446,16 @@ export function analyzePushupFrame(
   const isPlank = isPlankPosition(landmarks)
   if (isPlank) {
     state.consecutivePlankFrames += 1
+    state.consecutiveNonPlankFrames = 0
     if (state.consecutivePlankFrames >= thresholds.minPlankStableFrames) {
       state.isPlankStable = true
     }
   } else {
     state.consecutivePlankFrames = 0
-    state.isPlankStable = false
+    state.consecutiveNonPlankFrames += 1
+    if (state.consecutiveNonPlankFrames >= 3) {
+      state.isPlankStable = false
+    }
   }
 
   // 3. Compute body alignment for form tracking
@@ -454,6 +470,10 @@ export function analyzePushupFrame(
   }
 
   // 4. State Machine with Plank Body Gate
+  // In real mobile workout tests, brief 1-2 frame camera dropouts or landmark jitter can occur.
+  // We allow up to 2 consecutive dropout frames before aborting an active rep attempt.
+  const maxNonPlankTolerance = 3
+
   switch (state.phase) {
     case 'TOP':
       // CAN ONLY START A REP IF IN A VALID STABILIZED PLANK POSITION
@@ -466,8 +486,8 @@ export function analyzePushupFrame(
       break
 
     case 'DESCENDING':
-      // If user stands up or breaks plank posture mid-descent, cancel the rep attempt
-      if (!isPlank) {
+      // If user stands up or breaks plank posture for >= 3 frames, cancel the rep attempt
+      if (state.consecutiveNonPlankFrames >= maxNonPlankTolerance) {
         state.phase = 'TOP'
         state.repStartTimestamp = null
         state.deepestAngle = 180
@@ -489,8 +509,8 @@ export function analyzePushupFrame(
       break
 
     case 'BOTTOM':
-      // If user stands up or collapses from bottom position, cancel rep
-      if (!isPlank) {
+      // If user stands up or collapses from bottom position for >= 3 frames, cancel rep
+      if (state.consecutiveNonPlankFrames >= maxNonPlankTolerance) {
         state.phase = 'TOP'
         state.repStartTimestamp = null
         state.deepestAngle = 180
@@ -507,8 +527,8 @@ export function analyzePushupFrame(
       break
 
     case 'ASCENDING':
-      // If user stands up mid-ascent, cancel the rep
-      if (!isPlank) {
+      // If user stands up mid-ascent for >= 3 frames, cancel the rep
+      if (state.consecutiveNonPlankFrames >= maxNonPlankTolerance) {
         state.phase = 'TOP'
         state.repStartTimestamp = null
         state.deepestAngle = 180
@@ -519,12 +539,12 @@ export function analyzePushupFrame(
       }
 
       if (elbowAngle >= thresholds.topAngle) {
-        // Full cycle complete — validate rep duration AND require valid plank position
+        // Full cycle complete — validate rep duration AND require plank was not abandoned
         const repDuration = state.repStartTimestamp
           ? timestampMs - state.repStartTimestamp
           : 0
 
-        if (repDuration >= thresholds.minRepDurationMs && isPlank) {
+        if (repDuration >= thresholds.minRepDurationMs && state.consecutiveNonPlankFrames < maxNonPlankTolerance) {
           // VALID REP COUNTED
           state.repCount += 1
           state.lastRepRating = ratePushupRep(state.deepestAngle, state.worstBodyAngle)

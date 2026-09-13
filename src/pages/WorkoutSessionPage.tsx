@@ -301,20 +301,16 @@ export default function WorkoutSessionPage() {
     }
   }, [])
 
-  const resetCurrentAnalyzer = useCallback(() => {
-    if (exerciseTypeRef.current === 'bicep_curl') {
-      resetBicepCurlAnalyzer()
-    } else if (exerciseTypeRef.current === 'pushup') {
-      resetPushupAnalyzer()
-    } else {
-      resetSquatAnalyzer()
-    }
+  const resetAllAnalyzers = useCallback(() => {
+    resetSquatAnalyzer()
+    resetPushupAnalyzer()
+    resetBicepCurlAnalyzer()
     feedbackStabilizerRef.current.reset()
   }, [])
 
   // Lifecycle control handlers
   const handleStartWorkout = useCallback(() => {
-    resetCurrentAnalyzer()
+    resetAllAnalyzers()
     const initialPhase: SquatPhase | PushupPhase | BicepCurlPhase =
       exerciseTypeRef.current === 'bicep_curl'
         ? 'EXTENDED'
@@ -341,7 +337,7 @@ export default function WorkoutSessionPage() {
       phase: initialPhase,
     })
     setSessionStatus('active')
-  }, [resetCurrentAnalyzer])
+  }, [resetAllAnalyzers])
 
   const handlePause = useCallback(() => {
     setSessionStatus('paused')
@@ -483,7 +479,7 @@ export default function WorkoutSessionPage() {
   }, [handleStartWorkout])
 
   const handleReset = useCallback(() => {
-    resetCurrentAnalyzer()
+    resetAllAnalyzers()
     const initialPhase: SquatPhase | PushupPhase | BicepCurlPhase =
       exerciseTypeRef.current === 'bicep_curl'
         ? 'EXTENDED'
@@ -511,22 +507,30 @@ export default function WorkoutSessionPage() {
     })
     setIsPoseTracking(false)
     setSessionStatus('idle')
-  }, [resetCurrentAnalyzer])
+  }, [resetAllAnalyzers])
 
   const handleSelectExercise = useCallback(
     (type: ExerciseType) => {
       if (sessionStatus !== 'idle') return
       setExerciseType(type)
       exerciseTypeRef.current = type
-      resetCurrentAnalyzer()
+      resetAllAnalyzers()
       const initialPhase: SquatPhase | PushupPhase | BicepCurlPhase =
         type === 'bicep_curl' ? 'EXTENDED' : type === 'pushup' ? 'TOP' : 'STANDING'
+      prevRepCountRef.current = 0
+      prevPhaseRef.current = initialPhase
+      frameCountRef.current = 0
+      goodRepsRef.current = 0
+      needsImprovementRepsRef.current = 0
+      setGoodReps(0)
+      setNeedsImprovementReps(0)
+      setElapsedSeconds(0)
       setDisplay({
         ...INITIAL_DISPLAY,
         phase: initialPhase,
       })
     },
-    [sessionStatus, resetCurrentAnalyzer],
+    [sessionStatus, resetAllAnalyzers],
   )
 
   return (

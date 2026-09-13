@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Camera, CameraOff, Loader2, Pause } from 'lucide-react'
+import { Camera, CameraOff, Loader2, Pause, SwitchCamera } from 'lucide-react'
 import {
   initializePoseDetector,
   detectPoseForVideo,
@@ -25,8 +25,11 @@ export default function CameraFeed({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const animationFrameIdRef = useRef<number | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false)
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({
     width: 640,
     height: 480,
@@ -37,33 +40,60 @@ export default function CameraFeed({
   const [isCameraStarting, setIsCameraStarting] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // 1. Initialize camera stream
-  useEffect(() => {
-    let activeStream: MediaStream | null = null
+  // Cleanly stop any active media tracks
+  const stopCurrentStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+  }, [])
 
-    async function startCamera() {
+  // 1. Initialize camera stream with facingMode support and graceful fallback
+  const startCamera = useCallback(
+    async (mode: 'user' | 'environment') => {
       setIsCameraStarting(true)
       setError(null)
+      stopCurrentStream()
 
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('Camera access is not supported by your browser.')
         }
 
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user',
-          },
-          audio: false,
-        })
+        let mediaStream: MediaStream
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              facingMode: { ideal: mode },
+            },
+            audio: false,
+          })
+        } catch (modeErr) {
+          // Graceful fallback: If rear camera is unavailable, fallback to front camera
+          if (mode === 'environment') {
+            console.warn('Rear camera not available, falling back to front camera:', modeErr)
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user',
+              },
+              audio: false,
+            })
+            setFacingMode('user')
+          } else {
+            throw modeErr
+          }
+        }
 
-        activeStream = mediaStream
+        streamRef.current = mediaStream
         setStream(mediaStream)
 
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream
+          videoRef.current.play().catch(() => {})
         }
       } catch (err: unknown) {
         console.error('Camera initialization error:', err)
@@ -74,18 +104,28 @@ export default function CameraFeed({
         setError(errMsg)
       } finally {
         setIsCameraStarting(false)
+        setIsSwitchingCamera(false)
       }
-    }
+    },
+    [stopCurrentStream],
+  )
 
-    startCamera()
+  useEffect(() => {
+    startCamera('user')
 
     return () => {
-      // Clean up media tracks when unmounting
-      if (activeStream) {
-        activeStream.getTracks().forEach((track) => track.stop())
-      }
+      stopCurrentStream()
     }
-  }, [])
+  }, [startCamera, stopCurrentStream])
+
+  // Toggle front/rear camera
+  const toggleFacingMode = useCallback(() => {
+    if (isSwitchingCamera || isCameraStarting) return
+    setIsSwitchingCamera(true)
+    const nextMode = facingMode === 'user' ? 'environment' : 'user'
+    setFacingMode(nextMode)
+    startCamera(nextMode)
+  }, [facingMode, isSwitchingCamera, isCameraStarting, startCamera])
 
   // 2. Initialize MediaPipe PoseLandmarker
   useEffect(() => {
@@ -197,12 +237,12 @@ export default function CameraFeed({
         playsInline
         muted
         onLoadedMetadata={handleLoadedMetadata}
-        className="w-full h-full object-cover transform -scale-x-100"
+        className={`w-full h-full object-cover ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}
       />
 
       {/* Canvas Overlay for Pose Landmarks & Skeleton */}
       {showOverlay && (
-        <div className="absolute inset-0 transform -scale-x-100 pointer-events-none">
+        <div className={`absolute inset-0 pointer-events-none ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}>
           <PoseOverlay
             landmarks={currentLandmarks}
             width={dimensions.width}
@@ -281,6 +321,23 @@ export default function CameraFeed({
               : 'SEARCHING FOR POSE'}
           </span>
         </div>
+      )}
+
+      {/* Camera Flip Button (Front / Rear) */}
+      {!isCameraStarting && !isModelLoading && !error && (
+        <button
+          type="button"
+          onClick={toggleFacingMode}
+          disabled={isSwitchingCamera}
+          aria-label={`Switch to ${facingMode === 'user' ? 'rear' : 'front'} camera`}
+          className="absolute top-3 right-3 bg-slate-950/85 hover:bg-slate-900 border border-slate-800 active:scale-95 transition-all duration-150 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 z-10 shadow-lg text-slate-200 hover:text-white cursor-pointer disabled:opacity-50"
+          title={`Switch to ${facingMode === 'user' ? 'rear' : 'front'} camera`}
+        >
+          <SwitchCamera className={`w-4 h-4 text-cyan-400 ${isSwitchingCamera ? 'animate-spin' : ''}`} />
+          <span className="text-xs font-semibold select-none">
+            {facingMode === 'user' ? 'Rear Cam' : 'Front Cam'}
+          </span>
+        </button>
       )}
     </div>
   )
