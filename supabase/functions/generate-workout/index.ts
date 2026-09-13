@@ -173,6 +173,80 @@ function computeExerciseAdaptation(
   };
 }
 
+// Deterministic fallback plan compiled when Gemini is temporarily unavailable
+function createDeterministicFallbackPlan(
+  userProfile: Profile,
+  adaptationsMap: Map<string, AdaptationResult>,
+  adaptationsList: AdaptationResult[]
+): WorkoutPlan {
+  const fitnessLevel = userProfile.fitness_level || "beginner";
+  const durationMinutes = userProfile.available_time_minutes || 30;
+  const goal = userProfile.goal || "improve_fitness";
+
+  const defaultSets = fitnessLevel === "advanced" ? 4 : fitnessLevel === "intermediate" ? 3 : 3;
+  const defaultRest = fitnessLevel === "advanced" ? 45 : 60;
+
+  const exercises: ExerciseItem[] = [
+    {
+      name: "Bodyweight Squat",
+      exercise_type: "squat",
+      sets: defaultSets,
+      reps: adaptationsMap.get("squat")?.next_reps ?? (fitnessLevel === "advanced" ? 20 : fitnessLevel === "intermediate" ? 15 : 12),
+      rest_seconds: defaultRest,
+      instructions: "Stand shoulder-width apart. Lower hips until thighs are parallel to the floor, driving knees out and keeping chest elevated.",
+      reason: adaptationsMap.get("squat")?.reason ?? "Builds functional lower-body foundation and posterior chain stability.",
+    },
+    {
+      name: "Standard Push-up",
+      exercise_type: "pushup",
+      sets: defaultSets,
+      reps: adaptationsMap.get("pushup")?.next_reps ?? (fitnessLevel === "advanced" ? 15 : fitnessLevel === "intermediate" ? 12 : 8),
+      rest_seconds: defaultRest,
+      instructions: "Maintain a rigid plank line. Lower chest with elbows at 45 degrees, bracing core and glutes throughout.",
+      reason: adaptationsMap.get("pushup")?.reason ?? "Develops upper body pushing endurance and reinforces core plank integrity.",
+    },
+    {
+      name: "Bicep Curl",
+      exercise_type: "bicep_curl",
+      sets: defaultSets,
+      reps: adaptationsMap.get("bicep_curl")?.next_reps ?? (fitnessLevel === "advanced" ? 16 : fitnessLevel === "intermediate" ? 12 : 10),
+      rest_seconds: 45,
+      instructions: "Keep elbows fixed at your sides. Curl with control to peak contraction and lower slowly over 2 seconds.",
+      reason: adaptationsMap.get("bicep_curl")?.reason ?? "Isolates arm flexion mechanics with emphasis on eccentric tempo control.",
+    },
+  ];
+
+  const warmup: WarmupItem[] = [
+    { name: "Arm Circles & Shoulder Dislocates", duration_seconds: 60 },
+    { name: "Bodyweight Hip Hinges", duration_seconds: 60 },
+    { name: "Dynamic Leg Swings", duration_seconds: 60 },
+  ];
+
+  const cooldown: CooldownItem[] = [
+    { name: "Standing Quad & Hip Flexor Stretch", duration_seconds: 60 },
+    { name: "Doorway Chest Opener", duration_seconds: 60 },
+    { name: "Child's Pose Spine Decompression", duration_seconds: 60 },
+  ];
+
+  const plan: WorkoutPlan = {
+    title: "Full Body Adaptive Progression (Calibrated Routine)",
+    description: `Calibrated for your ${fitnessLevel} foundation with adaptive rep scaling based on exercise form history.`,
+    duration_minutes: durationMinutes,
+    difficulty: fitnessLevel,
+    goal: goal,
+    warmup,
+    exercises,
+    cooldown,
+    coach_note: "Adaptive fallback routine calibrated from your profile and recent exercise form metrics.",
+  };
+
+  if (adaptationsList.length > 0) {
+    plan.adaptations = adaptationsList;
+  }
+
+  return plan;
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -418,46 +492,47 @@ ${performanceContext}${adaptationConstraintsText}
       }
     }
 
-    if (!geminiRes || !geminiRes.ok) {
-      let errDetail = "AI service is temporarily busy. Please try again in a moment.";
-      if (geminiRes) {
+    let parsedPlan: any = null;
+
+    // 1. Try parsing successful Gemini response
+    if (geminiRes && geminiRes.ok) {
+      try {
+        const geminiData = await geminiRes.json();
+        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) {
+          const cleanJson = rawText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+          parsedPlan = JSON.parse(cleanJson);
+        }
+      } catch (parseErr) {
+        console.warn("Failed to parse Gemini output:", parseErr);
+      }
+    }
+
+    // 2. Fallback or Permanent Error Handling
+    if (!parsedPlan) {
+      // Check for permanent configuration/authentication errors (e.g. 400, 401, 403, 404)
+      if (geminiRes && !geminiRes.ok && geminiRes.status !== 429 && geminiRes.status !== 503) {
+        let errDetail = "AI engine error.";
         try {
           const errJson = await geminiRes.json();
-          // For permanent errors (non-429/503), surface message; for 429/503 keep user-friendly message
-          if (geminiRes.status !== 429 && geminiRes.status !== 503 && errJson?.error?.message) {
+          if (errJson?.error?.message) {
             errDetail = `AI engine: ${errJson.error.message}`;
           }
         } catch {
           // ignore
         }
+        return new Response(
+          JSON.stringify({ error: errDetail }),
+          { status: geminiRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      return new Response(
-        JSON.stringify({ error: errDetail }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
-    const geminiData = await geminiRes.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!rawText) {
-      return new Response(
-        JSON.stringify({ error: "Failed to generate workout plan from AI." }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // For transient failures (429 rate limit, 503 unavailable, network failures, or unparseable AI output)
+      // Compile deterministic personalized workout routine from user's profile and adaptations
+      console.warn(
+        `Gemini temporarily unavailable (status: ${lastTransientStatus || (geminiRes ? geminiRes.status : "network_failure")}). Compiling deterministic adaptive fallback routine.`
       );
-    }
-
-    // Parse & Validate JSON
-    let parsedPlan: any;
-    try {
-      const cleanJson = rawText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-      parsedPlan = JSON.parse(cleanJson);
-    } catch (parseErr) {
-      console.error("Failed to parse Gemini output:", rawText, parseErr);
-      return new Response(
-        JSON.stringify({ error: "Received malformed data from AI engine. Please retry." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      parsedPlan = createDeterministicFallbackPlan(userProfile, adaptationsMap, adaptationsList);
     }
 
     // Comprehensive validation
