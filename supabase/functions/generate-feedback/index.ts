@@ -11,12 +11,134 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-interface AIPostWorkoutFeedback {
+export interface AIPostWorkoutFeedback {
   summary: string;
   what_went_well: string[];
   improvements: string[];
   next_workout_recommendation: string;
   motivation: string;
+}
+
+export interface FallbackMetrics {
+  exercise: string;
+  total: number;
+  good: number;
+  bad: number;
+  duration: number;
+  accuracy: number;
+  goal?: string;
+  level?: string;
+}
+
+export function createDeterministicFallbackFeedback(metrics: FallbackMetrics): AIPostWorkoutFeedback {
+  const { exercise, total, good, bad, duration, accuracy } = metrics;
+
+  const mins = Math.floor(duration / 60);
+  const secs = duration % 60;
+  const durationText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  // Standardize exercise name for display
+  const exerciseDisplay =
+    exercise === "bicep_curl"
+      ? "Bicep Curls"
+      : exercise === "pushup"
+      ? "Push-ups"
+      : exercise === "squat"
+      ? "Squats"
+      : exercise.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // 1. Summary: Real metrics + transparent disclaimer that AI was unavailable
+  let summary: string;
+  if (total === 0) {
+    summary = `Session ended with 0 completed reps recorded over ${durationText}. Feedback generated from your workout metrics while the AI service was temporarily unavailable.`;
+  } else {
+    summary = `You completed ${total} ${exerciseDisplay.toLowerCase()} with ${accuracy}% form accuracy (${good} good, ${bad} needing improvement) over ${durationText}. Feedback generated from your workout metrics while the AI service was temporarily unavailable.`;
+  }
+
+  // 2. What Went Well (Derived from actual workout metrics)
+  const whatWentWell: string[] = [];
+  if (good > 0) {
+    whatWentWell.push(`Completed ${good} rep${good === 1 ? "" : "s"} with verified, clean form execution.`);
+  } else if (total > 0) {
+    whatWentWell.push(`Logged ${total} movement attempt${total === 1 ? "" : "s"} during the workout.`);
+  } else {
+    whatWentWell.push("Took the initiative to begin and complete the movement session.");
+  }
+
+  if (accuracy >= 80) {
+    whatWentWell.push(`Maintained high form discipline with ${accuracy}% overall accuracy.`);
+  } else if (accuracy >= 50) {
+    whatWentWell.push(`Demonstrated consistent effort across the ${durationText} workout window.`);
+  } else {
+    whatWentWell.push("Maintained steady pacing and persisted through the entire session.");
+  }
+
+  if (duration >= 30) {
+    whatWentWell.push(`Sustained cardiovascular and muscular engagement for ${durationText}.`);
+  } else {
+    whatWentWell.push("Demonstrated sharp focus and prompt execution from start to finish.");
+  }
+
+  // 3. Exercise-specific Improvements / Focus Areas
+  const improvements: string[] = [];
+  if (exercise === "squat") {
+    improvements.push("Depth: Descend until hips are parallel with knees while keeping weight centered through your mid-foot.");
+    improvements.push("Knee Alignment: Keep knees tracking directly over your toes without buckling inward.");
+    improvements.push("Torso Posture: Brace your core and maintain an upright chest to prevent excessive forward lean.");
+  } else if (exercise === "pushup") {
+    improvements.push("Plank & Body Alignment: Engage glutes and core to keep a straight line from head to heels without sagging hips.");
+    improvements.push("Elbow Position: Keep elbows tucked at approximately a 45-degree angle to protect shoulders.");
+    improvements.push("Range of Motion: Lower chest until elbows reach 90 degrees or below, then press to full lockout.");
+  } else if (exercise === "bicep_curl") {
+    improvements.push("Elbow Stability: Lock elbows firmly to your sides and eliminate shoulder swinging or torso momentum.");
+    improvements.push("Range of Motion: Fully extend arms at the bottom and squeeze biceps at peak contraction at the top.");
+    improvements.push("Controlled Movement: Lower the weight with a deliberate 2-second eccentric phase rather than dropping.");
+  } else {
+    improvements.push("Focus on steady movement tempo and full range of motion through both phases.");
+    improvements.push("Maintain strict joint alignment and core tension during each repetition.");
+  }
+
+  // 4. Recommendation Logic: Progressive overload (>= 80%) vs Technique refinement (< 80%)
+  let nextWorkoutRecommendation: string;
+  if (accuracy >= 80) {
+    if (exercise === "squat") {
+      nextWorkoutRecommendation = `Excellent form accuracy (${accuracy}%). For your next session, increase volume by 2-3 reps or add a 1-second pause at the bottom of each squat for progressive overload.`;
+    } else if (exercise === "pushup") {
+      nextWorkoutRecommendation = `Outstanding form accuracy (${accuracy}%). Progress by adding 1-2 reps per set or slowing down the lowering phase for greater time under tension.`;
+    } else if (exercise === "bicep_curl") {
+      nextWorkoutRecommendation = `Strong form quality (${accuracy}%). Increase target reps by 2-3 or introduce a 2-second hold at peak contraction for progressive overload.`;
+    } else {
+      nextWorkoutRecommendation = `Great form quality (${accuracy}%). Progress gradually by increasing your repetition target by 2-3 reps in your next session.`;
+    }
+  } else {
+    if (exercise === "squat") {
+      nextWorkoutRecommendation = `Form accuracy was ${accuracy}%. Prioritize technique before adding volume: focus on reaching full parallel depth with an upright chest on every rep.`;
+    } else if (exercise === "pushup") {
+      nextWorkoutRecommendation = `Form accuracy was ${accuracy}%. Prioritize form over rep count: maintain a rigid plank and 45-degree elbow path before increasing workload.`;
+    } else if (exercise === "bicep_curl") {
+      nextWorkoutRecommendation = `Form accuracy was ${accuracy}%. Prioritize strict technique: anchor your elbows to eliminate momentum before raising your target repetitions.`;
+    } else {
+      nextWorkoutRecommendation = `Form accuracy was ${accuracy}%. Focus on refining your movement mechanics and full range of motion before increasing workout volume.`;
+    }
+  }
+
+  // 5. Motivation
+  let motivation: string;
+  if (accuracy >= 80) {
+    motivation = "Outstanding form quality and consistency—keep building on this fantastic momentum!";
+  } else if (accuracy >= 50) {
+    motivation = "Solid progress and great effort—consistent technique will take your fitness to the next level!";
+  } else {
+    motivation = "Every session builds vital neuromuscular coordination—stay dedicated and keep showing up!";
+  }
+
+  return {
+    summary,
+    what_went_well: whatWentWell.slice(0, 3),
+    improvements: improvements.slice(0, 3),
+    next_workout_recommendation: nextWorkoutRecommendation,
+    motivation,
+  };
 }
 
 serve(async (req: Request) => {
@@ -171,80 +293,81 @@ STRICT COACHING RULES:
         break;
       } catch (networkErr) {
         console.warn(`Network error during Gemini request on attempt ${attempt + 1}:`, networkErr);
-        if (attempt === MAX_ATTEMPTS - 1) {
-          throw networkErr;
-        }
       }
     }
 
-    if (!geminiRes || !geminiRes.ok) {
-      let errDetail = "AI service is temporarily busy. Please try again in a moment.";
-      if (geminiRes) {
+    let parsedFeedback: any = null;
+
+    // 1. Try parsing successful Gemini response
+    if (geminiRes && geminiRes.ok) {
+      try {
+        const geminiData = await geminiRes.json();
+        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) {
+          const cleanJson = rawText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+          parsedFeedback = JSON.parse(cleanJson);
+        }
+      } catch (parseErr) {
+        console.warn("Failed to parse Gemini feedback output:", parseErr);
+      }
+    }
+
+    let sanitizedFeedback: AIPostWorkoutFeedback;
+
+    if (parsedFeedback && typeof parsedFeedback === "object") {
+      // Gemini succeeded and returned valid JSON
+      sanitizedFeedback = {
+        summary: typeof parsedFeedback.summary === "string" && parsedFeedback.summary.trim().length > 0
+          ? parsedFeedback.summary.trim()
+          : `You completed ${total} ${exercise}s with ${accuracy}% form accuracy. Great dedication!`,
+        what_went_well: Array.isArray(parsedFeedback.what_went_well)
+          ? parsedFeedback.what_went_well.slice(0, 3).map((item: any) => String(item).trim()).filter(Boolean)
+          : ["Solid workout consistency and effort."],
+        improvements: Array.isArray(parsedFeedback.improvements)
+          ? parsedFeedback.improvements.slice(0, 3).map((item: any) => String(item).trim()).filter(Boolean)
+          : ["Focus on controlled tempo and full range of motion."],
+        next_workout_recommendation: typeof parsedFeedback.next_workout_recommendation === "string" && parsedFeedback.next_workout_recommendation.trim().length > 0
+          ? parsedFeedback.next_workout_recommendation.trim()
+          : (accuracy >= 80
+            ? "Progress gradually by adding 2-3 reps next session."
+            : "Keep the same repetition target and prioritize clean form execution."),
+        motivation: typeof parsedFeedback.motivation === "string" && parsedFeedback.motivation.trim().length > 0
+          ? parsedFeedback.motivation.trim()
+          : "Every rep brings you closer to your fitness goals!",
+      };
+    } else {
+      // Check for permanent configuration/authentication errors (e.g. 400, 401, 403, 404)
+      if (geminiRes && !geminiRes.ok && geminiRes.status !== 429 && geminiRes.status !== 503) {
+        let errDetail = "AI engine error.";
         try {
           const errJson = await geminiRes.json();
-          // For permanent errors (non-429/503), surface message; for 429/503 keep user-friendly message
-          if (geminiRes.status !== 429 && geminiRes.status !== 503 && errJson?.error?.message) {
+          if (errJson?.error?.message) {
             errDetail = `AI engine: ${errJson.error.message}`;
           }
         } catch {
           // ignore
         }
+        return new Response(
+          JSON.stringify({ error: errDetail }),
+          { status: geminiRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      return new Response(
-        JSON.stringify({ error: errDetail }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+
+      // For transient failures (429 rate limit, 503 unavailable, network failures, or unparseable AI output)
+      console.warn(
+        `Gemini temporarily unavailable (status: ${lastTransientStatus || (geminiRes ? geminiRes.status : "network_failure")}). Generating deterministic fallback feedback.`
       );
+      sanitizedFeedback = createDeterministicFallbackFeedback({
+        exercise,
+        total,
+        good,
+        bad,
+        duration,
+        accuracy,
+        goal,
+        level,
+      });
     }
-
-    const geminiData = await geminiRes.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!rawText) {
-      return new Response(
-        JSON.stringify({ error: "Failed to generate workout feedback from AI." }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Parse & Validate Feedback JSON
-    let parsedFeedback: any;
-    try {
-      const cleanJson = rawText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-      parsedFeedback = JSON.parse(cleanJson);
-    } catch (parseErr) {
-      console.error("Failed to parse Gemini feedback output:", rawText, parseErr);
-      return new Response(
-        JSON.stringify({ error: "Received malformed feedback data from AI engine." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!parsedFeedback || typeof parsedFeedback !== "object") {
-      return new Response(
-        JSON.stringify({ error: "AI returned invalid feedback structure." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const sanitizedFeedback: AIPostWorkoutFeedback = {
-      summary: typeof parsedFeedback.summary === "string" && parsedFeedback.summary.trim().length > 0
-        ? parsedFeedback.summary.trim()
-        : `You completed ${total} ${exercise}s with ${accuracy}% form accuracy. Great dedication!`,
-      what_went_well: Array.isArray(parsedFeedback.what_went_well)
-        ? parsedFeedback.what_went_well.slice(0, 3).map((item: any) => String(item).trim()).filter(Boolean)
-        : ["Solid workout consistency and effort."],
-      improvements: Array.isArray(parsedFeedback.improvements)
-        ? parsedFeedback.improvements.slice(0, 3).map((item: any) => String(item).trim()).filter(Boolean)
-        : ["Focus on controlled tempo and full range of motion."],
-      next_workout_recommendation: typeof parsedFeedback.next_workout_recommendation === "string" && parsedFeedback.next_workout_recommendation.trim().length > 0
-        ? parsedFeedback.next_workout_recommendation.trim()
-        : (accuracy >= 80
-          ? "Progress gradually by adding 2-3 reps next session."
-          : "Keep the same repetition target and prioritize clean form execution."),
-      motivation: typeof parsedFeedback.motivation === "string" && parsedFeedback.motivation.trim().length > 0
-        ? parsedFeedback.motivation.trim()
-        : "Every rep brings you closer to your fitness goals!",
-    };
 
     // Save into Supabase `workout_sessions` table
     let savedSession = null;
