@@ -159,6 +159,14 @@ export default function CameraFeed({
   const processFrame = useCallback(() => {
     const video = videoRef.current
     if (video && video.readyState >= 2) {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        setDimensions((prev) =>
+          prev.width === video.videoWidth && prev.height === video.videoHeight
+            ? prev
+            : { width: video.videoWidth, height: video.videoHeight }
+        )
+      }
+
       const now = performance.now()
       const result = detectPoseForVideo(video, now)
 
@@ -237,16 +245,19 @@ export default function CameraFeed({
         playsInline
         muted
         onLoadedMetadata={handleLoadedMetadata}
+        onLoadedData={handleLoadedMetadata}
+        onPlay={handleLoadedMetadata}
         className={`w-full h-full object-cover ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}
       />
 
       {/* Canvas Overlay for Pose Landmarks & Skeleton */}
       {showOverlay && (
-        <div className={`absolute inset-0 pointer-events-none ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}>
+        <div className="absolute inset-0 pointer-events-none">
           <PoseOverlay
             landmarks={currentLandmarks}
-            width={dimensions.width}
-            height={dimensions.height}
+            videoWidth={dimensions.width}
+            videoHeight={dimensions.height}
+            isMirrored={facingMode === 'user'}
           />
         </div>
       )}
