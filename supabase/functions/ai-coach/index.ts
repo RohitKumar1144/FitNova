@@ -341,14 +341,14 @@ serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseAnonKey) {
       return new Response(
-        JSON.stringify({ error: "Server misconfiguration: Supabase environment variables missing." }),
+        JSON.stringify({ error: "Server misconfiguration: Database connection settings are missing." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!geminiApiKey) {
       return new Response(
-        JSON.stringify({ error: "Server misconfiguration: GEMINI_API_KEY is not configured in Edge Function secrets." }),
+        JSON.stringify({ error: "Server misconfiguration: AI service is not properly configured." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -642,17 +642,14 @@ COACHING RULES:
 
     // 2. Preserve permanent configuration/client errors (e.g. 400, 401, 403, 404)
     if (geminiRes && !geminiRes.ok && geminiRes.status !== 429 && geminiRes.status !== 503) {
-      let errDetail = "AI engine error.";
       try {
         const errJson = await geminiRes.json();
-        if (errJson?.error?.message) {
-          errDetail = `AI engine: ${errJson.error.message}`;
-        }
+        console.error("Upstream AI engine error:", errJson);
       } catch {
-        // ignore
+        console.error("Upstream AI engine error with unparseable response body");
       }
       return new Response(
-        JSON.stringify({ error: errDetail }),
+        JSON.stringify({ error: "The AI service is temporarily unable to process this request. Please try again shortly." }),
         { status: geminiRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

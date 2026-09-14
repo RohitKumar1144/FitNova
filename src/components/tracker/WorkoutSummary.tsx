@@ -208,7 +208,7 @@ export default function WorkoutSummary({
           <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
             AI Coach Feedback
             <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Gemini 3.8
+              Smart Analysis
             </span>
           </h3>
         </div>

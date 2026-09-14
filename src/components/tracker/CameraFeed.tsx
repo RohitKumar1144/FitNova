@@ -267,7 +267,7 @@ export default function CameraFeed({
         <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-20">
           <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mb-3" />
           <p className="text-sm font-semibold text-white">
-            {isCameraStarting ? 'Requesting camera access...' : 'Initializing MediaPipe AI model...'}
+            {isCameraStarting ? 'Requesting camera access...' : 'Initializing vision tracking...'}
           </p>
           <p className="text-xs text-slate-400 mt-1">
             Running secure on-device vision in your browser.

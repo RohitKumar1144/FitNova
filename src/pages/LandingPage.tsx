@@ -121,7 +121,7 @@ export default function LandingPage() {
     {
       step: '03',
       title: 'Start Your Workout',
-      description: 'Launch your webcam. MediaPipe pose detection runs directly in your browser with private on-device vision.',
+      description: 'Launch your webcam. Real-time pose detection runs directly in your browser with private on-device vision.',
       detail: 'No video is stored or sent to any remote server.',
       icon: <Camera className="w-5 h-5 text-cyan-400" />,
       tag: 'On-Device AI',

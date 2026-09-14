@@ -468,7 +468,7 @@ export default function AuthPage() {
         {/* Security badge note */}
         <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-center gap-2 text-[11px] text-slate-400">
           <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Protected with secure Supabase authentication</span>
+          <span>Protected with secure cloud authentication</span>
         </div>
       </div>
     </div>

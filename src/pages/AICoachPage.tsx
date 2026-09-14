@@ -199,7 +199,7 @@ export default function AICoachPage() {
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center justify-center sm:justify-start gap-2">
             FitNova AI Coach
             <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Gemini 3.8 Flash
+              AI Active
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
