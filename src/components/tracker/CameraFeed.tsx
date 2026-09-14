@@ -5,7 +5,7 @@ import {
   detectPoseForVideo,
   type NormalizedLandmark,
 } from '../../lib/mediapipe/poseDetector'
-import PoseOverlay from './PoseOverlay'
+import PoseOverlay, { type PoseOverlayHandle } from './PoseOverlay'
 
 interface CameraFeedProps {
   onLandmarksDetected?: (landmarks: NormalizedLandmark[], timestampMs: number) => void
@@ -24,8 +24,48 @@ export default function CameraFeed({
 }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const overlayRef = useRef<PoseOverlayHandle | null>(null)
   const animationFrameIdRef = useRef<number | null>(null)
+  const videoFrameCallbackIdRef = useRef<number | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+
+  // Tracking refs to avoid stale closures and React re-renders in hot loop
+  const isProcessingRef = useRef(false)
+  const lastTimestampRef = useRef(0)
+  const lastVideoTimeRef = useRef(-1)
+  const lastInferenceTimeRef = useRef(0)
+  const consecutiveMissedFramesRef = useRef(0)
+  const isTrackingActiveRef = useRef(false)
+  const diagCountRef = useRef(0)
+  const dimensionsRef = useRef<{ width: number; height: number }>({ width: 640, height: 480 })
+
+  const onLandmarksDetectedRef = useRef(onLandmarksDetected)
+  const onTrackingChangeRef = useRef(onTrackingChange)
+  const isPausedRef = useRef(isPaused)
+  const showOverlayRef = useRef(showOverlay)
+
+  // Keep prop refs up to date
+  useEffect(() => {
+    onLandmarksDetectedRef.current = onLandmarksDetected
+  }, [onLandmarksDetected])
+
+  useEffect(() => {
+    onTrackingChangeRef.current = onTrackingChange
+  }, [onTrackingChange])
+
+  useEffect(() => {
+    isPausedRef.current = isPaused
+    if (isPaused) {
+      overlayRef.current?.clear()
+    }
+  }, [isPaused])
+
+  useEffect(() => {
+    showOverlayRef.current = showOverlay
+    if (!showOverlay) {
+      overlayRef.current?.clear()
+    }
+  }, [showOverlay])
 
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
@@ -34,7 +74,10 @@ export default function CameraFeed({
     width: 640,
     height: 480,
   })
-  const [currentLandmarks, setCurrentLandmarks] = useState<NormalizedLandmark[] | null>(null)
+
+  // Low-frequency UI state for tracking badge (POSE DETECTED vs SEARCHING FOR POSE)
+  // Only updates when tracking status actually changes, NOT every frame!
+  const [isPoseDetected, setIsPoseDetected] = useState(false)
 
   const [isModelLoading, setIsModelLoading] = useState(true)
   const [isCameraStarting, setIsCameraStarting] = useState(true)
@@ -154,25 +197,54 @@ export default function CameraFeed({
     }
   }, [])
 
-  // 3. Real-time frame detection loop
-  const diagCountRef = useRef(0)
+  // 3. Real-time frame detection loop with frame deduplication & synchronous overlay rendering
   const processFrame = useCallback(() => {
     const video = videoRef.current
-    if (video && video.readyState >= 2) {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setDimensions((prev) =>
-          prev.width === video.videoWidth && prev.height === video.videoHeight
-            ? prev
-            : { width: video.videoWidth, height: video.videoHeight }
-        )
+    if (!video || video.readyState < 2) return
+
+    // Update video dimensions if changed (e.g. metadata loaded)
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      if (
+        dimensionsRef.current.width !== video.videoWidth ||
+        dimensionsRef.current.height !== video.videoHeight
+      ) {
+        dimensionsRef.current = { width: video.videoWidth, height: video.videoHeight }
+        setDimensions(dimensionsRef.current)
       }
+    }
 
-      const now = performance.now()
-      const result = detectPoseForVideo(video, now)
+    // Frame deduplication when not using requestVideoFrameCallback:
+    // Webcams deliver frames at ~30fps (~33ms).
+    // If video.currentTime has not advanced and less than 60ms elapsed, skip duplicate frame.
+    const hasRVFC = typeof (video as any).requestVideoFrameCallback === 'function'
+    const now = performance.now()
 
-      // Throttled diagnostic logging (roughly once per second at 60fps)
+    if (!hasRVFC) {
+      const currentTime = video.currentTime
+      const timeSinceLastInference = now - lastInferenceTimeRef.current
+      if (currentTime > 0 && currentTime === lastVideoTimeRef.current && timeSinceLastInference < 60) {
+        return
+      }
+      lastVideoTimeRef.current = currentTime
+    }
+    lastInferenceTimeRef.current = now
+
+    // Re-entrancy guard
+    if (isProcessingRef.current) {
+      return
+    }
+    isProcessingRef.current = true
+
+    try {
+      // Ensure timestampMs strictly increases monotonically (required by MediaPipe PoseLandmarker)
+      const timestampMs = Math.max(now, lastTimestampRef.current + 1)
+      lastTimestampRef.current = timestampMs
+
+      const result = detectPoseForVideo(video, timestampMs)
+
+      // Throttled diagnostic logging (roughly once per second)
       diagCountRef.current += 1
-      if (diagCountRef.current % 60 === 0) {
+      if (diagCountRef.current % 30 === 0) {
         const hasLandmarks = result && result.landmarks && result.landmarks.length > 0
         if (hasLandmarks) {
           const lm = result!.landmarks[0]
@@ -192,33 +264,96 @@ export default function CameraFeed({
 
       if (result && result.landmarks && result.landmarks.length > 0) {
         const detected = result.landmarks[0]
-        setCurrentLandmarks(detected)
-        if (onTrackingChange) {
-          onTrackingChange(true)
+        consecutiveMissedFramesRef.current = 0
+
+        // 1. Direct imperative canvas render - ZERO React re-renders!
+        if (showOverlayRef.current && !isPausedRef.current) {
+          overlayRef.current?.renderFrame(detected)
         }
-        if (!isPaused && onLandmarksDetected) {
-          onLandmarksDetected(detected, now)
+
+        // 2. Low-frequency tracking status notification (only on state change)
+        if (!isTrackingActiveRef.current) {
+          isTrackingActiveRef.current = true
+          setIsPoseDetected(true)
+          onTrackingChangeRef.current?.(true)
+        }
+
+        // 3. Deliver full 33 landmarks to exercise analyzers (squat, pushup, bicep curl)
+        if (!isPausedRef.current && onLandmarksDetectedRef.current) {
+          onLandmarksDetectedRef.current(detected, timestampMs)
         }
       } else {
-        setCurrentLandmarks(null)
-        if (onTrackingChange) {
-          onTrackingChange(false)
+        consecutiveMissedFramesRef.current += 1
+
+        // Debounce tracking loss by 8 frames (~250ms) to prevent single-frame flickering
+        if (consecutiveMissedFramesRef.current >= 8) {
+          if (isTrackingActiveRef.current) {
+            isTrackingActiveRef.current = false
+            setIsPoseDetected(false)
+            onTrackingChangeRef.current?.(false)
+          }
+          if (showOverlayRef.current) {
+            overlayRef.current?.clear()
+          }
         }
       }
+    } catch (err) {
+      console.warn('[FitNova] Frame detection error:', err)
+    } finally {
+      isProcessingRef.current = false
     }
+  }, [])
 
-    animationFrameIdRef.current = requestAnimationFrame(processFrame)
-  }, [onLandmarksDetected, onTrackingChange, isPaused])
-
+  // Video frame scheduling using requestVideoFrameCallback where supported, with rAF fallback
   useEffect(() => {
-    if (!isModelLoading && !isCameraStarting && stream) {
-      animationFrameIdRef.current = requestAnimationFrame(processFrame)
+    if (isModelLoading || isCameraStarting || !stream) {
+      return
     }
+
+    let isRunning = true
+    const video = videoRef.current
+    if (!video) return
+
+    const hasRVFC = typeof (video as any).requestVideoFrameCallback === 'function'
+
+    const tick = () => {
+      if (!isRunning) return
+
+      processFrame()
+
+      if (!isRunning) return
+
+      if (hasRVFC && videoRef.current) {
+        videoFrameCallbackIdRef.current = (videoRef.current as any).requestVideoFrameCallback(tick)
+      } else {
+        animationFrameIdRef.current = requestAnimationFrame(tick)
+      }
+    }
+
+    if (hasRVFC) {
+      videoFrameCallbackIdRef.current = (video as any).requestVideoFrameCallback(tick)
+    } else {
+      animationFrameIdRef.current = requestAnimationFrame(tick)
+    }
+
+    const currentVideo = video
+    const currentOverlay = overlayRef.current
 
     return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current)
+      isRunning = false
+      if (hasRVFC && videoFrameCallbackIdRef.current !== null && currentVideo) {
+        try {
+          ;(currentVideo as any).cancelVideoFrameCallback(videoFrameCallbackIdRef.current)
+        } catch {
+          // ignore
+        }
+        videoFrameCallbackIdRef.current = null
       }
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current)
+        animationFrameIdRef.current = null
+      }
+      currentOverlay?.clear()
     }
   }, [isModelLoading, isCameraStarting, stream, processFrame])
 
@@ -227,6 +362,7 @@ export default function CameraFeed({
     if (videoRef.current) {
       const { videoWidth, videoHeight } = videoRef.current
       if (videoWidth && videoHeight) {
+        dimensionsRef.current = { width: videoWidth, height: videoHeight }
         setDimensions({ width: videoWidth, height: videoHeight })
       }
     }
@@ -254,7 +390,7 @@ export default function CameraFeed({
       {showOverlay && (
         <div className="absolute inset-0 pointer-events-none">
           <PoseOverlay
-            landmarks={currentLandmarks}
+            ref={overlayRef}
             videoWidth={dimensions.width}
             videoHeight={dimensions.height}
             isMirrored={facingMode === 'user'}
@@ -313,21 +449,21 @@ export default function CameraFeed({
               className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
                 isPaused
                   ? 'bg-amber-400'
-                  : currentLandmarks
+                  : isPoseDetected
                   ? 'bg-emerald-400 animate-ping'
                   : 'bg-amber-400'
               }`}
             />
             <span
               className={`relative inline-flex rounded-full h-2 w-2 ${
-                isPaused ? 'bg-amber-500' : currentLandmarks ? 'bg-emerald-500' : 'bg-amber-500'
+                isPaused ? 'bg-amber-500' : isPoseDetected ? 'bg-emerald-500' : 'bg-amber-500'
               }`}
             />
           </span>
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
             {isPaused
               ? 'PAUSED'
-              : currentLandmarks
+              : isPoseDetected
               ? 'POSE DETECTED'
               : 'SEARCHING FOR POSE'}
           </span>

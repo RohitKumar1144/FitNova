@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react'
 import type { NormalizedLandmark } from '../../lib/mediapipe/poseDetector'
-import { POSE_CONNECTIONS, POSE_LANDMARKS } from '../../lib/mediapipe/landmarks'
+import {
+  POSE_LANDMARKS,
+  FITNESS_POSE_CONNECTIONS,
+} from '../../lib/mediapipe/landmarks'
 
-interface PoseOverlayProps {
-  landmarks: NormalizedLandmark[] | null
+export interface PoseOverlayHandle {
+  renderFrame: (landmarks: NormalizedLandmark[] | null) => void
+  clear: () => void
+}
+
+export interface PoseOverlayProps {
+  landmarks?: NormalizedLandmark[] | null
   videoWidth?: number
   videoHeight?: number
   isMirrored?: boolean
@@ -14,13 +22,20 @@ interface PoseOverlayProps {
   height?: number
 }
 
+// Configurable velocity-adaptive visual coordinate smoothing constants
+export const VISUAL_SMOOTHING_STATIC_ALPHA = 0.50  // Stronger smoothing for stationary/micro-jitter
+export const VISUAL_SMOOTHING_MEDIUM_ALPHA = 0.75  // Balanced smoothing for moderate movement
+export const VISUAL_SMOOTHING_FAST_ALPHA = 0.95    // Light smoothing / instant tracking for rapid movement
+
+// Movement velocity thresholds in normalized coordinate distance per frame
+export const VELOCITY_THRESHOLD_STATIC = 0.008
+export const VELOCITY_THRESHOLD_FAST = 0.032
+
 const MAJOR_JOINTS = new Set<number>([
   POSE_LANDMARKS.LEFT_SHOULDER,
   POSE_LANDMARKS.RIGHT_SHOULDER,
   POSE_LANDMARKS.LEFT_ELBOW,
   POSE_LANDMARKS.RIGHT_ELBOW,
-  POSE_LANDMARKS.LEFT_WRIST,
-  POSE_LANDMARKS.RIGHT_WRIST,
   POSE_LANDMARKS.LEFT_HIP,
   POSE_LANDMARKS.RIGHT_HIP,
   POSE_LANDMARKS.LEFT_KNEE,
@@ -29,34 +44,279 @@ const MAJOR_JOINTS = new Set<number>([
   POSE_LANDMARKS.RIGHT_ANKLE,
 ])
 
-const SECONDARY_JOINTS = new Set<number>([
-  POSE_LANDMARKS.NOSE,
-  POSE_LANDMARKS.LEFT_EAR,
-  POSE_LANDMARKS.RIGHT_EAR,
-  POSE_LANDMARKS.LEFT_HEEL,
-  POSE_LANDMARKS.RIGHT_HEEL,
-  POSE_LANDMARKS.LEFT_FOOT_INDEX,
-  POSE_LANDMARKS.RIGHT_FOOT_INDEX,
-])
+interface SmoothedPoint {
+  x: number
+  y: number
+  lastSeen: number
+}
 
-export default function PoseOverlay({
-  landmarks,
-  videoWidth,
-  videoHeight,
-  isMirrored = false,
-  showSkeleton = true,
-  showKeypoints = true,
-  className = '',
-  width,
-  height,
-}: PoseOverlayProps) {
+const PoseOverlay = forwardRef<PoseOverlayHandle, PoseOverlayProps>(function PoseOverlay(
+  {
+    landmarks,
+    videoWidth,
+    videoHeight,
+    isMirrored = false,
+    showSkeleton = true,
+    showKeypoints = true,
+    className = '',
+    width,
+    height,
+  }: PoseOverlayProps,
+  ref
+) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({
-    width: 0,
-    height: 0,
+  const displaySizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 })
+  const smoothedPointsRef = useRef<Map<number, SmoothedPoint>>(new Map())
+
+  // Keep latest props in refs to avoid recreating the imperative draw callback
+  const propsRef = useRef({
+    videoWidth,
+    videoHeight,
+    isMirrored,
+    showSkeleton,
+    showKeypoints,
+    width,
+    height,
   })
 
-  // ResizeObserver to track the actual canvas/video display rectangle dynamically
+  useEffect(() => {
+    propsRef.current = {
+      videoWidth,
+      videoHeight,
+      isMirrored,
+      showSkeleton,
+      showKeypoints,
+      width,
+      height,
+    }
+  })
+
+  // Clear canvas buffer and visual smoothing history
+  const clearCanvas = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    smoothedPointsRef.current.clear()
+  }, [])
+
+  // Synchronous, high-performance canvas draw routine
+  const drawFrame = useCallback((rawLandmarks: NormalizedLandmark[] | null) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const displayWidth = canvas.clientWidth || displaySizeRef.current.width
+    const displayHeight = canvas.clientHeight || displaySizeRef.current.height
+    if (displayWidth <= 0 || displayHeight <= 0) return
+
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    const targetBufferWidth = Math.round(displayWidth * dpr)
+    const targetBufferHeight = Math.round(displayHeight * dpr)
+
+    // Resize canvas buffer only when physical dimensions change
+    if (canvas.width !== targetBufferWidth || canvas.height !== targetBufferHeight) {
+      canvas.width = targetBufferWidth
+      canvas.height = targetBufferHeight
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, displayWidth, displayHeight)
+
+    if (!rawLandmarks || rawLandmarks.length === 0) {
+      smoothedPointsRef.current.clear()
+      return
+    }
+
+    const {
+      videoWidth: vW,
+      videoHeight: vH,
+      isMirrored: mirrored,
+      showSkeleton: drawSkeleton,
+      showKeypoints: drawPoints,
+      width: fallbackW,
+      height: fallbackH,
+    } = propsRef.current
+
+    const vWidth = vW || fallbackW || 640
+    const vHeight = vH || fallbackH || 480
+
+    // Compute exact CSS object-cover scaling and crop offsets
+    const scale = Math.max(displayWidth / vWidth, displayHeight / vHeight)
+    const renderedWidth = vWidth * scale
+    const renderedHeight = vHeight * scale
+    const offsetX = (displayWidth - renderedWidth) / 2
+    const offsetY = (displayHeight - renderedHeight) / 2
+
+    const now = performance.now()
+    const minVisibility = 0.35
+
+    // Velocity-adaptive coordinate smoother map for visualization
+    const activePoints = new Map<number, { x: number; y: number; visibility: number }>()
+
+    for (let i = 0; i < rawLandmarks.length; i++) {
+      const lm = rawLandmarks[i]
+      if (!lm) continue
+
+      const vis = lm.visibility !== undefined ? lm.visibility : 1
+      if (vis < minVisibility) {
+        // Discard stale landmark tracking if invisible
+        const existing = smoothedPointsRef.current.get(i)
+        if (existing && now - existing.lastSeen > 120) {
+          smoothedPointsRef.current.delete(i)
+        }
+        continue
+      }
+
+      // Compute velocity-adaptive smoothing
+      const prev = smoothedPointsRef.current.get(i)
+      let sx = lm.x
+      let sy = lm.y
+
+      if (prev && now - prev.lastSeen < 250) {
+        const deltaDist = Math.hypot(lm.x - prev.x, lm.y - prev.y)
+        let alpha: number
+        if (deltaDist <= VELOCITY_THRESHOLD_STATIC) {
+          alpha = VISUAL_SMOOTHING_STATIC_ALPHA
+        } else if (deltaDist >= VELOCITY_THRESHOLD_FAST) {
+          alpha = VISUAL_SMOOTHING_FAST_ALPHA
+        } else {
+          const t = (deltaDist - VELOCITY_THRESHOLD_STATIC) / (VELOCITY_THRESHOLD_FAST - VELOCITY_THRESHOLD_STATIC)
+          alpha = VISUAL_SMOOTHING_STATIC_ALPHA + t * (VISUAL_SMOOTHING_FAST_ALPHA - VISUAL_SMOOTHING_STATIC_ALPHA)
+        }
+        sx = prev.x + alpha * (lm.x - prev.x)
+        sy = prev.y + alpha * (lm.y - prev.y)
+      }
+
+      smoothedPointsRef.current.set(i, { x: sx, y: sy, lastSeen: now })
+
+      // Project into screen coordinates
+      const screenX = mirrored
+        ? offsetX + (1 - sx) * renderedWidth
+        : offsetX + sx * renderedWidth
+      const screenY = offsetY + sy * renderedHeight
+
+      activePoints.set(i, { x: screenX, y: screenY, visibility: vis })
+    }
+
+    // 1. Draw Clean Fitness Skeleton Lines
+    if (drawSkeleton) {
+      ctx.beginPath()
+
+      // Primary fitness body connections
+      for (const [startIdx, endIdx] of FITNESS_POSE_CONNECTIONS) {
+        const p1 = activePoints.get(startIdx)
+        const p2 = activePoints.get(endIdx)
+        if (!p1 || !p2) continue
+
+        ctx.moveTo(p1.x, p1.y)
+        ctx.lineTo(p2.x, p2.y)
+      }
+
+      // Clean head indicator connection: Nose to midpoint between shoulders
+      const nose = activePoints.get(POSE_LANDMARKS.NOSE)
+      const lShoulder = activePoints.get(POSE_LANDMARKS.LEFT_SHOULDER)
+      const rShoulder = activePoints.get(POSE_LANDMARKS.RIGHT_SHOULDER)
+      if (nose && lShoulder && rShoulder) {
+        const neckX = (lShoulder.x + rShoulder.x) / 2
+        const neckY = (lShoulder.y + rShoulder.y) / 2
+        ctx.moveTo(nose.x, nose.y)
+        ctx.lineTo(neckX, neckY)
+      }
+
+      ctx.lineWidth = 3
+      ctx.strokeStyle = '#34d399' // Emerald-400
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.stroke()
+    }
+
+    // 2. Draw Clean Fitness Keypoints (No facial or finger clutter)
+    if (drawPoints) {
+      // Draw head / nose
+      const nose = activePoints.get(POSE_LANDMARKS.NOSE)
+      if (nose) {
+        ctx.beginPath()
+        ctx.arc(nose.x, nose.y, 5, 0, 2 * Math.PI)
+        ctx.fillStyle = '#38bdf8' // Sky-400
+        ctx.fill()
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = '#020617' // Slate-950
+        ctx.stroke()
+      }
+
+      // Draw major body joints (shoulders, elbows, hips, knees, ankles)
+      for (const jointIdx of MAJOR_JOINTS) {
+        const pt = activePoints.get(jointIdx)
+        if (!pt) continue
+
+        ctx.beginPath()
+        ctx.arc(pt.x, pt.y, 4.5, 0, 2 * Math.PI)
+        ctx.fillStyle = '#38bdf8' // Sky-400
+        ctx.fill()
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = '#020617' // Slate-950
+        ctx.stroke()
+      }
+
+      // Draw wrists as clean endpoint dots (no hand/finger spiderwebs)
+      const lWrist = activePoints.get(POSE_LANDMARKS.LEFT_WRIST)
+      if (lWrist) {
+        ctx.beginPath()
+        ctx.arc(lWrist.x, lWrist.y, 3.5, 0, 2 * Math.PI)
+        ctx.fillStyle = '#34d399' // Emerald-400
+        ctx.fill()
+        ctx.lineWidth = 1
+        ctx.strokeStyle = '#020617'
+        ctx.stroke()
+      }
+
+      const rWrist = activePoints.get(POSE_LANDMARKS.RIGHT_WRIST)
+      if (rWrist) {
+        ctx.beginPath()
+        ctx.arc(rWrist.x, rWrist.y, 3.5, 0, 2 * Math.PI)
+        ctx.fillStyle = '#34d399' // Emerald-400
+        ctx.fill()
+        ctx.lineWidth = 1
+        ctx.strokeStyle = '#020617'
+        ctx.stroke()
+      }
+
+      // Draw feet index endpoints
+      const lFoot = activePoints.get(POSE_LANDMARKS.LEFT_FOOT_INDEX)
+      if (lFoot) {
+        ctx.beginPath()
+        ctx.arc(lFoot.x, lFoot.y, 3, 0, 2 * Math.PI)
+        ctx.fillStyle = '#38bdf8'
+        ctx.fill()
+        ctx.lineWidth = 1
+        ctx.strokeStyle = '#020617'
+        ctx.stroke()
+      }
+
+      const rFoot = activePoints.get(POSE_LANDMARKS.RIGHT_FOOT_INDEX)
+      if (rFoot) {
+        ctx.beginPath()
+        ctx.arc(rFoot.x, rFoot.y, 3, 0, 2 * Math.PI)
+        ctx.fillStyle = '#38bdf8'
+        ctx.fill()
+        ctx.lineWidth = 1
+        ctx.strokeStyle = '#020617'
+        ctx.stroke()
+      }
+    }
+  }, [])
+
+  // Expose imperative drawing handle
+  useImperativeHandle(ref, () => ({
+    renderFrame: drawFrame,
+    clear: clearCanvas,
+  }), [drawFrame, clearCanvas])
+
+  // ResizeObserver dynamically measures canvas layout without triggering component re-renders
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -64,15 +324,14 @@ export default function PoseOverlay({
     const updateSize = () => {
       const rect = canvas.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
-        setDisplaySize((prev) => {
-          if (
-            Math.abs(prev.width - rect.width) < 0.5 &&
-            Math.abs(prev.height - rect.height) < 0.5
-          ) {
-            return prev
-          }
-          return { width: rect.width, height: rect.height }
-        })
+        displaySizeRef.current = { width: rect.width, height: rect.height }
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+        const targetBufferWidth = Math.round(rect.width * dpr)
+        const targetBufferHeight = Math.round(rect.height * dpr)
+        if (canvas.width !== targetBufferWidth || canvas.height !== targetBufferHeight) {
+          canvas.width = targetBufferWidth
+          canvas.height = targetBufferHeight
+        }
       }
     }
 
@@ -92,154 +351,12 @@ export default function PoseOverlay({
     }
   }, [])
 
+  // Fallback support if landmarks prop is passed directly
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // Actual CSS display size of the canvas / video container
-    const displayWidth = canvas.clientWidth || displaySize.width
-    const displayHeight = canvas.clientHeight || displaySize.height
-
-    if (displayWidth <= 0 || displayHeight <= 0) return
-
-    // Handle devicePixelRatio for crisp rendering on Retina/HiDPI screens
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-    const targetBufferWidth = Math.round(displayWidth * dpr)
-    const targetBufferHeight = Math.round(displayHeight * dpr)
-
-    if (canvas.width !== targetBufferWidth || canvas.height !== targetBufferHeight) {
-      canvas.width = targetBufferWidth
-      canvas.height = targetBufferHeight
+    if (landmarks !== undefined) {
+      drawFrame(landmarks)
     }
-
-    // Set transform so all drawing coordinates map directly to CSS display pixels
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, displayWidth, displayHeight)
-
-    if (!landmarks || landmarks.length === 0) {
-      return
-    }
-
-    // Determine intrinsic camera/video dimensions
-    const vWidth = videoWidth || width || 640
-    const vHeight = videoHeight || height || 480
-
-    // Compute exact CSS object-cover scaling and crop offsets
-    const scale = Math.max(displayWidth / vWidth, displayHeight / vHeight)
-    const renderedWidth = vWidth * scale
-    const renderedHeight = vHeight * scale
-    const offsetX = (displayWidth - renderedWidth) / 2
-    const offsetY = (displayHeight - renderedHeight) / 2
-
-    // Project normalized landmark [0, 1] into actual display coordinates
-    const toScreenX = (normX: number) => {
-      return isMirrored
-        ? offsetX + (1 - normX) * renderedWidth
-        : offsetX + normX * renderedWidth
-    }
-
-    const toScreenY = (normY: number) => {
-      return offsetY + normY * renderedHeight
-    }
-
-    const minVisibility = 0.35
-
-    // 1. Draw skeletal connections
-    if (showSkeleton) {
-      for (const [startIdx, endIdx] of POSE_CONNECTIONS) {
-        const start = landmarks[startIdx]
-        const end = landmarks[endIdx]
-
-        if (!start || !end) continue
-
-        if (
-          (start.visibility !== undefined && start.visibility < minVisibility) ||
-          (end.visibility !== undefined && end.visibility < minVisibility)
-        ) {
-          continue
-        }
-
-        const x1 = toScreenX(start.x)
-        const y1 = toScreenY(start.y)
-        const x2 = toScreenX(end.x)
-        const y2 = toScreenY(end.y)
-
-        // Delicate rendering for facial connections; solid bold for body
-        const isFaceConnection =
-          startIdx <= POSE_LANDMARKS.MOUTH_RIGHT && endIdx <= POSE_LANDMARKS.MOUTH_RIGHT
-
-        ctx.beginPath()
-        ctx.moveTo(x1, y1)
-        ctx.lineTo(x2, y2)
-
-        if (isFaceConnection) {
-          ctx.lineWidth = 1.5
-          ctx.strokeStyle = 'rgba(52, 211, 153, 0.7)' // Emerald-400 subtle
-        } else {
-          ctx.lineWidth = 3
-          ctx.strokeStyle = '#34d399' // Emerald-400 solid
-        }
-
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-        ctx.stroke()
-      }
-    }
-
-    // 2. Draw keypoint circles
-    if (showKeypoints) {
-      for (let i = 0; i < landmarks.length; i++) {
-        const lm = landmarks[i]
-        if (!lm) continue
-
-        if (lm.visibility !== undefined && lm.visibility < minVisibility) {
-          continue
-        }
-
-        const x = toScreenX(lm.x)
-        const y = toScreenY(lm.y)
-
-        let radius = 2
-        let fill = '#38bdf8'
-        let strokeWidth = 1
-
-        if (MAJOR_JOINTS.has(i)) {
-          radius = 4.5
-          fill = '#38bdf8' // Sky-400
-          strokeWidth = 1.5
-        } else if (SECONDARY_JOINTS.has(i)) {
-          radius = 3
-          fill = '#7dd3fc' // Sky-300
-          strokeWidth = 1
-        } else if (i >= POSE_LANDMARKS.LEFT_PINKY && i <= POSE_LANDMARKS.RIGHT_THUMB) {
-          radius = 2.5
-          fill = '#38bdf8'
-          strokeWidth = 1
-        }
-
-        ctx.beginPath()
-        ctx.arc(x, y, radius, 0, 2 * Math.PI)
-        ctx.fillStyle = fill
-        ctx.fill()
-        ctx.lineWidth = strokeWidth
-        ctx.strokeStyle = '#020617' // Slate-950
-        ctx.stroke()
-      }
-    }
-  }, [
-    landmarks,
-    videoWidth,
-    videoHeight,
-    isMirrored,
-    showSkeleton,
-    showKeypoints,
-    displaySize,
-    width,
-    height,
-  ])
+  }, [landmarks, drawFrame])
 
   return (
     <canvas
@@ -247,4 +364,6 @@ export default function PoseOverlay({
       className={`absolute inset-0 w-full h-full pointer-events-none ${className}`}
     />
   )
-}
+})
+
+export default PoseOverlay
